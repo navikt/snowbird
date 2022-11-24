@@ -6,8 +6,8 @@ from permifrost import SpecLoadingError
 from permifrost.snowflake_connector import SnowflakeConnector
 from permifrost.snowflake_spec_loader import SnowflakeSpecLoader
 
-from snowbird.loader import get_models, get_spec_file_paths
-from snowbird.models import Databases, Roles, Users, Warehouse, Warehouses
+from snowbird.loader import get_snowbird_model, get_spec_file_paths
+from snowbird.models import Database, Databases, Roles, Users, Warehouse, Warehouses
 
 LOGGER = logging.getLogger()
 
@@ -56,17 +56,10 @@ def create_databases(conn: SnowflakeConnector, spec: List[Databases]) -> None:
         for database in item.keys():
             statement = f"CREATE DATABASE IF NOT EXISTS {database}"
             execute_statement(conn, statement)
-            # TODO: modify permifrost to allow schema specification ??
-            statement = f"CREATE SCHEMA IF NOT EXISTS {database}.raw"
-            execute_statement(conn, statement)
-            statement = f"CREATE SCHEMA IF NOT EXISTS {database}.transformed"
-            execute_statement(conn, statement)
-            statement = f"CREATE SCHEMA IF NOT EXISTS {database}.reporting"
-            execute_statement(conn, statement)
-            statement = f"CREATE SCHEMA IF NOT EXISTS {database}.internal"
-            execute_statement(conn, statement)
-            statement = f"CREATE SCHEMA IF NOT EXISTS {database}.public"
-            execute_statement(conn, statement)
+
+            db: Database = item[database]
+            for schema in db.schemas:
+                statement = f"CREATE SCHEMA IF NOT EXISTS {database}.{schema}"
 
 
 def create_warehouses(conn: SnowflakeConnector, spec: List[Warehouses]) -> None:
@@ -130,7 +123,7 @@ def create_resources():
 
     print("creating resources defined in snowflake.yml")
     try:
-        for model in get_models("snowflake.yml"):
+        for model in get_snowbird_model("snowflake.yml"):
 
             if model.databases is not None:
                 create_databases(conn, model.databases)

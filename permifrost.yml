@@ -1,0 +1,62 @@
+databases:
+- vdl_eyeshare:
+    shared: false
+roles:
+- vdl_eyeshare_loader:
+    member_of:
+    - sysadmin
+    privileges:
+      databases:
+        read:
+        - vdl_eyeshare
+        write:
+        - vdl_eyeshare
+      schemas:
+        read:
+        - vdl_eyeshare.*
+        write:
+        - vdl_eyeshare.*
+      tables:
+        read:
+        - vdl_eyeshare.*.*
+        write:
+        - vdl_eyeshare.*.*
+    warehouses:
+    - vdl_eyeshare_loading
+- vdl_eyeshare_engineer:
+    member_of:
+    - sysadmin
+    privileges:
+      databases:
+        read:
+        - vdl_eyeshare
+        write:
+        - vdl_eyeshare
+      schemas:
+        read:
+        - vdl_eyeshare.*
+        write:
+        - vdl_eyeshare.*
+      tables:
+        read:
+        - vdl_eyeshare.*.*
+        write:
+        - vdl_eyeshare.*.*
+    warehouses:
+    - vdl_eyeshare_loading
+users:
+- vdl_eyeshare_loader:
+    can_login: true
+    member_of:
+    - vdl_eyeshare_loader
+- vdl_eyeshare_engineer:
+    can_login: true
+    member_of:
+    - vdl_eyeshare_engineer
+warehouses:
+- vdl_eyeshare_loading:
+    size: x-small
+- vdl_eyeshare_reporting:
+    size: x-small
+- vdl_eyeshare_transforming:
+    size: x-small

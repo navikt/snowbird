@@ -1,6 +1,44 @@
+import json
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel
+
+
+def get_valid_permifrost_dict(model: Dict):
+
+    res = {}
+
+    for k, v in model.items():
+        if k == "databases":
+            for el in v:
+                for sk in el.values():
+                    sk.pop("schemas", None)
+                    res[k] = v
+        elif k == "users":
+            for el in v:
+                for sk in el.values():
+                    sk.pop("owner", None)
+                res[k] = v
+        elif k == "roles":
+            for el in v:
+                for sk in el.values():
+                    sk.pop("integrations", None)
+                    sk.pop("owns", None)
+                    sk.pop("owner", None)
+            res[k] = v
+        elif k == "warehouses":
+            for el in v:
+                for sk in el.values():
+                    sk.pop("initially_suspended", None)
+                    sk.pop("auto_suspend", None)
+            res[k] = v
+
+    return res
+
+
+def permifrost_dumps(v, *, default):
+    f = get_valid_permifrost_dict(v)
+    return json.dumps(f, default=default)
 
 
 class DictModel(BaseModel):
@@ -77,8 +115,13 @@ class Users(DictModel):
     __root__: Dict[str, User]
 
 
-class Model(BaseModel):
+class SnowbirdModel(BaseModel):
     databases: Optional[List[Databases]]
     warehouses: Optional[List[Warehouses]]
     roles: Optional[List[Roles]]
     users: Optional[List[Users]]
+
+
+class PermifrostModel(SnowbirdModel):
+    class Config:
+        json_dumps = permifrost_dumps

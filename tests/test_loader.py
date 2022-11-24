@@ -1,17 +1,39 @@
-import os
+import json
+import tempfile
 from pathlib import Path
 
-from snowbird.loader import get_models
-from snowbird.models import Model
+import yaml
+from permifrost.spec_file_loader import load_spec
+
+from snowbird.loader import get_snowbird_model
+from snowbird.models import Database, PermifrostModel, SnowbirdModel
 
 
 def test_updating_snowflake():
 
-    try:
-        models = get_models("snowflake.yml", Path(__file__).parent)
-        for model in models:
-            assert type(model) == Model
-    except:
-        assert False
+    model = get_snowbird_model("snowflake.yml", Path(__file__).parent)
+    assert type(model) == SnowbirdModel
 
-test_updating_snowflake()
+
+def test_to_permifrost():
+
+    model = get_snowbird_model("snowflake.yml", Path(__file__).parent)
+
+    pm = PermifrostModel(**model.dict())
+
+    with tempfile.NamedTemporaryFile(mode="w+") as tf:
+        js = json.loads(pm.json())
+        yaml.dump(js, tf)
+        spec = load_spec(tf.name)
+        assert type(spec) == dict
+
+
+def test_schemas():
+
+    model = get_snowbird_model("snowflake.yml", Path(__file__).parent)
+
+    for item in model.databases:
+        for name in item.keys():
+            db: Database = item[name]
+            for schema in db.schemas:
+                assert type(schema) == str
