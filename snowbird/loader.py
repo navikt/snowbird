@@ -44,7 +44,7 @@ def get_snowbird_model(spec_file: str, root_dir: Path = None) -> SnowbirdModel:
             LOGGER.error(f"Error parsing spec file {spec_file}. {e}")
 
 
-def dump_permifrost_model_to_file(
+def write_snowbird_model_to_permifrost_file(
     model: SnowbirdModel, tf: tempfile.NamedTemporaryFile
 ) -> str:
     pm = PermifrostModel(**model.dict())
@@ -57,4 +57,4 @@ def write_permifrost_model_to_file(
 ) -> str:
     model = get_snowbird_model(spec_file, root_dir)
 
-    return dump_permifrost_model_to_file(model, tf)
+    return write_snowbird_model_to_permifrost_file(model, tf)

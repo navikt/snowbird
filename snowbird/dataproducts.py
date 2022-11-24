@@ -120,7 +120,7 @@ def create_users(conn: SnowflakeConnector, spec: List[Users]) -> None:
 
 
 # resource creation not part of permifrost. We therefore generate our own resource creation queries
-def create_resources() -> SnowbirdModel:
+def create_snowflake_resources() -> SnowbirdModel:
     print("create resources")
 
     try:
