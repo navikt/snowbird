@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "snowbird"
+version = "0.0.1"
+description = "Snowbird configures Snowflake resources for dataproducts. Builds on Permifrost." 
+authors = ["pbencze <paul@idelab.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+permifrost = "^0.14.0"
+pydantic = "^1.10.2"
+PyYAML = "^6.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.2.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

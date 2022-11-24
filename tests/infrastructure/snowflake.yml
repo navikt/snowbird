@@ -1,0 +1,88 @@
+version: "1.0"
+
+# Databases
+databases:
+    - vdl_eyeshare:
+        shared: no
+        owner: paul
+
+# Roles
+roles:
+    ## Admin Roles
+
+    ## Regular Roles
+    - vdl_eyeshare_loader:
+        member_of:
+            - sysadmin
+        warehouses:
+            - vdl_eyeshare_loading
+        privileges:
+            databases:
+                read:
+                    - vdl_eyeshare
+                write:
+                    - vdl_eyeshare
+            schemas:
+                read:
+                    - vdl_eyeshare.*
+                write:
+                    - vdl_eyeshare.*
+            tables:
+                read:
+                    - vdl_eyeshare.*.*
+                write:
+                    - vdl_eyeshare.*.*
+   
+   
+    - vdl_eyeshare_engineer:
+        member_of:
+            - sysadmin
+        warehouses:
+            - vdl_eyeshare_loading
+        privileges:
+            databases:
+                read:
+                    - vdl_eyeshare
+                write:
+                    - vdl_eyeshare
+            schemas:
+                read:
+                    - vdl_eyeshare.*
+                write:
+                    - vdl_eyeshare.*
+            tables:
+                read:
+                    - vdl_eyeshare.*.*
+                write:
+                    - vdl_eyeshare.*.*
+        owns:
+            schemas:
+                - vdl_eyeshare.transformed
+      
+
+
+# Users
+users:
+    - vdl_eyeshare_loader:
+        can_login: yes
+        member_of:
+            - vdl_eyeshare_loader
+
+    - vdl_eyeshare_engineer:
+        can_login: yes
+        member_of:
+            - vdl_eyeshare_engineer
+
+
+# Warehouses
+warehouses:
+    - vdl_eyeshare_loading:
+        size: x-small
+
+    - vdl_eyeshare_reporting:
+        size: x-small
+
+    - vdl_eyeshare_transforming:
+        size: x-small
+
+

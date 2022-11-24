@@ -1,0 +1,1 @@
+Snowbird configures Snowflake resources for dataproducts. Builds on Permifrost.  
