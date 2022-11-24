@@ -5,7 +5,7 @@ from pathlib import Path
 import yaml
 from permifrost.spec_file_loader import load_spec
 
-from snowbird.loader import get_snowbird_model
+from snowbird.loader import get_snowbird_model, write_permifrost_model_to_file
 from snowbird.models import Database, PermifrostModel, SnowbirdModel
 
 
@@ -37,3 +37,14 @@ def test_schemas():
             db: Database = item[name]
             for schema in db.schemas:
                 assert type(schema) == str
+
+
+def test_get_permifrost_model():
+
+    with tempfile.NamedTemporaryFile(mode="w+") as tf:
+        write_permifrost_model_to_file(tf, "snowflake.yml", Path(__file__).parent)
+        spec = load_spec(tf.name)
+        assert type(spec) == dict
+
+
+test_get_permifrost_model()

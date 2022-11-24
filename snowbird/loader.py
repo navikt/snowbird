@@ -1,4 +1,6 @@
+import json
 import logging
+import tempfile
 from pathlib import Path
 from typing import Dict, Iterator
 
@@ -7,7 +9,7 @@ LOGGER = logging.getLogger()
 
 import yaml
 
-from snowbird.models import SnowbirdModel
+from snowbird.models import PermifrostModel, SnowbirdModel
 
 
 def read_json(source: str) -> Dict:
@@ -40,3 +42,19 @@ def get_snowbird_model(spec_file: str, root_dir: Path = None) -> SnowbirdModel:
             return model
         except Exception as e:
             LOGGER.error(f"Error parsing spec file {spec_file}. {e}")
+
+
+def dump_permifrost_model_to_file(
+    model: SnowbirdModel, tf: tempfile.NamedTemporaryFile
+) -> str:
+    pm = PermifrostModel(**model.dict())
+    js = json.loads(pm.json())
+    yaml.dump(js, tf)
+
+
+def write_permifrost_model_to_file(
+    tf: tempfile.NamedTemporaryFile, spec_file: str, root_dir: Path = None
+) -> str:
+    model = get_snowbird_model(spec_file, root_dir)
+
+    return dump_permifrost_model_to_file(model, tf)

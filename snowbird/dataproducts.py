@@ -7,7 +7,15 @@ from permifrost.snowflake_connector import SnowflakeConnector
 from permifrost.snowflake_spec_loader import SnowflakeSpecLoader
 
 from snowbird.loader import get_snowbird_model, get_spec_file_paths
-from snowbird.models import Database, Databases, Roles, Users, Warehouse, Warehouses
+from snowbird.models import (
+    Database,
+    Databases,
+    Roles,
+    SnowbirdModel,
+    Users,
+    Warehouse,
+    Warehouses,
+)
 
 LOGGER = logging.getLogger()
 
@@ -112,7 +120,7 @@ def create_users(conn: SnowflakeConnector, spec: List[Users]) -> None:
 
 
 # resource creation not part of permifrost. We therefore generate our own resource creation queries
-def create_resources():
+def create_resources() -> SnowbirdModel:
     print("create resources")
 
     try:
@@ -123,19 +131,21 @@ def create_resources():
 
     print("creating resources defined in snowflake.yml")
     try:
-        for model in get_snowbird_model("snowflake.yml"):
+        model = get_snowbird_model("snowflake.yml")
 
-            if model.databases is not None:
-                create_databases(conn, model.databases)
+        if model.databases is not None:
+            create_databases(conn, model.databases)
 
-            if model.warehouses is not None:
-                create_warehouses(conn, model.warehouses)
+        if model.warehouses is not None:
+            create_warehouses(conn, model.warehouses)
 
-            if model.roles is not None:
-                create_roles(conn, model.roles)
+        if model.roles is not None:
+            create_roles(conn, model.roles)
 
-            if model.users is not None:
-                create_users(conn, model.users)
+        if model.users is not None:
+            create_users(conn, model.users)
+
+        return model
 
     except Exception as e:
         print(f"Error creating resources: {str(e)}")
