@@ -16,5 +16,4 @@ def configure_infrastructure():
         run_permifrost(tf.name)
 
 
-if __name__ == "__main__":
-    configure_infrastructure()
+configure_infrastructure()
