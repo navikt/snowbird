@@ -5,7 +5,7 @@ description = "Snowbird configures Snowflake resources for dataproducts. Builds 
 authors = ["pbencze <paul@idelab.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.8"
 permifrost = "^0.14.0"
 pydantic = "^1.10.2"
 PyYAML = "^6.0"
