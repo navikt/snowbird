@@ -2,7 +2,7 @@ version: "1.0"
 
 # Databases
 databases:
-    - vdl_eyeshare:
+    - vdl_ssb:
         shared: no
         schemas:
             - raw
@@ -12,84 +12,101 @@ databases:
 
 # Roles
 roles:
-    ## Admin Roles
-
-    ## Regular Roles
-    - vdl_eyeshare_loader:
+    ## System Roles
+    - vdl_ssb_loader:
         member_of:
             - sysadmin
         warehouses:
-            - vdl_eyeshare_loading
+            - vdl_ssb_loading
         privileges:
             databases:
                 read:
-                    - vdl_eyeshare
+                    - vdl_ssb
                 write:
-                    - vdl_eyeshare
+                    - vdl_ssb
             schemas:
                 read:
-                    - vdl_eyeshare.*
+                    - vdl_ssb.raw
                 write:
-                    - vdl_eyeshare.*
+                    - vdl_ssb.raw
             tables:
                 read:
-                    - vdl_eyeshare.*.*
+                    - vdl_ssb.raw.*
                 write:
-                    - vdl_eyeshare.*.*
+                    - vdl_ssb.raw.*
    
    
-    - vdl_eyeshare_engineer:
+    - vdl_ssb_transformer:
         member_of:
             - sysadmin
         warehouses:
-            - vdl_eyeshare_loading
+            - vdl_ssb_transforming
         privileges:
             databases:
                 read:
-                    - vdl_eyeshare
+                    - vdl_ssb
                 write:
-                    - vdl_eyeshare
+                    - vdl_ssb
             schemas:
                 read:
-                    - vdl_eyeshare.*
+                    - vdl_ssb.*
                 write:
-                    - vdl_eyeshare.*
+                    - vdl_ssb.transformed
+                    - vdl_ssb.reporting
+                    - vdl_ssb.internal
             tables:
                 read:
-                    - vdl_eyeshare.*.*
+                    - vdl_ssb.raw.*
                 write:
-                    - vdl_eyeshare.*.*
-        owns:
+                    - vdl_ssb.transformed.*
+                    - vdl_ssb.reporting.*
+                    - vdl_ssb.internal.*
+                    
+                    
+    - vdl_ssb_reporter:
+        member_of:
+            - public
+        warehouses:
+            - vdl_ssb_reporting
+        privileges:
+            databases:
+                read:
+                    - vdl_ssb
+                write:
+                    - vdl_ssb
             schemas:
-                - vdl_eyeshare.transformed
-      
+                read:
+                    - vdl_ssb.reporting
+                write:
+                     - vdl_ssb.public
+            tables:
+                read:
+                    - vdl_ssb.reporting.*
+                    - vdl_ssb.internal.*
+                write:
+                     - vdl_ssb.public.*
 
 
 # Users
 users:
-    - vdl_eyeshare_loader:
+    - vdl_ssb_loader:
         can_login: yes
         member_of:
-            - vdl_eyeshare_loader
+            - vdl_ssb_loader
 
-    - vdl_eyeshare_engineer:
+    - vdl_ssb_transformer:
         can_login: yes
         member_of:
-            - vdl_eyeshare_engineer
+            - vdl_ssb_transformer
 
 
 # Warehouses
 warehouses:
-    - vdl_eyeshare_loading:
+    - vdl_ssb_loading:
         size: x-small
-        initially-suspended: True
 
-    - vdl_eyeshare_reporting:
+    - vdl_ssb_reporting:
         size: x-small
-        initially-suspended: True
 
-    - vdl_eyeshare_transforming:
+    - vdl_ssb_transforming:
         size: x-small
-        initially-suspended: True
-
-

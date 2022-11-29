@@ -1,12 +1,11 @@
 import logging
 import secrets
+from pathlib import Path
 from typing import List
 
-from permifrost import SpecLoadingError
 from permifrost.snowflake_connector import SnowflakeConnector
-from permifrost.snowflake_spec_loader import SnowflakeSpecLoader
 
-from snowbird.loader import get_snowbird_model, get_spec_file_paths
+from snowbird.loader import get_spec_file_paths, load_snowbird_spec
 from snowbird.models import (
     Database,
     Databases,
@@ -16,45 +15,9 @@ from snowbird.models import (
     Warehouse,
     Warehouses,
 )
+from snowbird.utils import execute_statement, load_specs, print_command
 
 LOGGER = logging.getLogger()
-
-# adapted from permifrost cli
-def print_command(command):
-    if command.get("run_status"):
-        run_prefix = "[SUCCESS] "
-    elif command.get("run_status") is None:
-        run_prefix = "[SKIPPED] "
-    else:
-        run_prefix = "[ERROR] "
-
-    print(f"{run_prefix}{command['sql']};")
-
-
-def load_specs(spec, conn: SnowflakeConnector = None):
-    try:
-        spec_loader = SnowflakeSpecLoader(spec_path=spec, conn=conn)
-        return spec_loader
-    except SpecLoadingError as exc:
-        for line in str(exc).splitlines():
-            print(line)
-
-
-def execute_statement(
-    conn: SnowflakeConnector, statement: str, alias: str = None
-) -> None:
-    result = None
-    try:
-        LOGGER.info(statement)
-        result = conn.run_query(statement)
-        status = True
-    except Exception as e:
-        status = False
-        LOGGER.error(f"Error executing {statement}. {e}")
-    finally:
-        command = {"run_status": status, "sql": alias or statement}
-        print_command(command)
-        return result
 
 
 def create_databases(conn: SnowflakeConnector, spec: List[Databases]) -> None:
@@ -76,7 +39,6 @@ def create_warehouses(conn: SnowflakeConnector, spec: List[Warehouses]) -> None:
     for item in spec:
         for name in item.keys():
             wh: Warehouse = item[name]
-            # TODO: consider allowing these permifrost attributes??
             statement = f"""
                     CREATE WAREHOUSE IF NOT EXISTS {name}
                         WITH WAREHOUSE_SIZE='{wh.size}'
@@ -120,19 +82,19 @@ def create_users(conn: SnowflakeConnector, spec: List[Users]) -> None:
 
 
 # resource creation not part of permifrost. We therefore generate our own resource creation queries
-def create_snowflake_resources() -> SnowbirdModel:
-    print("create resources")
+def create_snowflake_resources(
+    conn: SnowflakeConnector, path: str = None, file: str = None
+) -> SnowbirdModel:
+
+    model = None
 
     try:
-        conn = SnowflakeConnector()
+        file_name = file if file else "snowflake.yml"
+        model = load_snowbird_spec(file_name, root_dir=Path(path))
     except Exception as e:
-        print(f"Error creating Snowflake connection: {str(e)}")
-        return
+        print(f"Error parsing file {path}/{file}: {str(e)}")
 
-    print("creating resources defined in snowflake.yml")
     try:
-        model = get_snowbird_model("snowflake.yml")
-
         if model.databases is not None:
             create_databases(conn, model.databases)
 
@@ -145,42 +107,46 @@ def create_snowflake_resources() -> SnowbirdModel:
         if model.users is not None:
             create_users(conn, model.users)
 
-        return model
-
     except Exception as e:
         print(f"Error creating resources: {str(e)}")
 
+    return model
+
 
 # adapted from permifrost cli
-def run_permifrost(spec_file: str = "snowflake.yml"):
+def run_permifrost(
+    conn: SnowflakeConnector, spec_file: str = None, root_dir: str = None
+):
+
+    LOGGER.info(f"Run permifrost with spec file {spec_file}")
+
+    if not Path(spec_file).is_file:
+        spec_file = get_spec_file_paths(spec_file, root_dir)
 
     try:
-        conn = SnowflakeConnector()
+        execute_statement(conn, "USE ROLE SECURITYADMIN")
     except Exception as e:
-        print(e)
-        return
+        LOGGER.error(f"Could not set role SECURITYADMIN. {e}")
 
-    for spec_file in get_spec_file_paths(spec_file):
+    try:
+        spec_loader = load_specs(spec_file, conn)
 
-        try:
-            spec_loader = load_specs(spec_file, conn)
+        # TODO: submit pull request to allow reuse of SnowflakeConnection and configuration?
+        sql_grant_queries = spec_loader.generate_permission_queries()
+        for query in sql_grant_queries:
+            status = None
+            if not query.get("already_granted"):
+                try:
+                    conn.run_query(query.get("sql", ""))
+                    status = True
+                except Exception:
+                    status = False
 
-            # TODO: submit pull request to allow reuse of SnowflakeConnection and configuration?
-            sql_grant_queries = spec_loader.generate_permission_queries()
-            for query in sql_grant_queries:
-                status = None
-                if not query.get("already_granted"):
-                    try:
-                        conn.run_query(query.get("sql", ""))
-                        status = True
-                    except Exception:
-                        status = False
+                ran_query = query
+                ran_query["run_status"] = status
+                print_command(ran_query)
+            else:
+                print_command(query)
 
-                    ran_query = query
-                    ran_query["run_status"] = status
-                    print_command(ran_query)
-                else:
-                    print_command(query)
-
-        except Exception as e:
-            print(e)
+    except Exception as e:
+        LOGGER.info(f"Error running permifrost with spec file {spec_file}. {e}")
