@@ -92,7 +92,7 @@ def create_snowflake_resources(
         file_name = file if file else "snowflake.yml"
         model = load_snowbird_spec(file_name, root_dir=Path(path))
     except Exception as e:
-        print(f"Error parsing file {path}/{file}: {str(e)}")
+        LOGGER.error(f"Error parsing file {path}/{file}: {e}")
 
     try:
         if model.databases is not None:
@@ -127,6 +127,7 @@ def run_permifrost(
         execute_statement(conn, "USE ROLE SECURITYADMIN")
     except Exception as e:
         LOGGER.error(f"Could not set role SECURITYADMIN. {e}")
+        return
 
     try:
         spec_loader = load_specs(spec_file, conn)
