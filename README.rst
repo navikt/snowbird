@@ -1,8 +1,8 @@
 # About
 
-Snowbird is a utility to declaratively configure Snowflake resources for dataproducts. 
+Snowbird helps configure Snowflake resources for dataproducts. 
 
-Builds on Permifrost.  
+Snowbird builds on Permifrost.  
 
 # Installation
 

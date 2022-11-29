@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "snowbird"
-version = "0.0.1"
-description = "Snowbird configures Snowflake resources for dataproducts. Builds on Permifrost." 
+version = "0.0.2"
+description = "Snowbird helps configure Snowflake resources for dataproducts. Builds on Permifrost." 
 readme = "README.rst"
 authors = ["pbencze <paul@idelab.com>"]
 
