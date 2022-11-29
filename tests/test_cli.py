@@ -2,7 +2,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from snowbird.cli import snowbird
+from snowbird.command import snowbird
 
 
 def test_info():
