@@ -1,18 +1,18 @@
-===============
- About
-===============
+# About
 
-Snowbird helps configure Snowflake resources for dataproducts. Snowbird builds on Permifrost.
+Snowbird helps configure Snowflake resources for 
 
-===============
- Installation
-===============
+dataproducts. 
+
+Snowbird builds on [Permifrost](https://about.gitlab.com/handbook/business-technology/data-team/platform/permifrost/).
+
+In addition to the capabilities provided by permifrost snowbird also enables declarative configuration of databases, schemas, warehouses and stages.
+
+# Installation
 
 pip install snowbird
 
-===============
- Example
-===============
+# Example
 
 The default declaration file name is 'snowflake.yml' and the default location of the file is ./infrastructure
 
