@@ -1,13 +1,10 @@
-name: Publish Python 🐍 distributions 📦 to PyPI
+name: Publish Python 🐍 distributions 📦 TestPyPI
 
-on: 
-  push:
-    tags:
-      - '0.*'
+on: push
 
 jobs:
   build-n-publish:
-    name: Build and publish Python 🐍 distributions 📦 to PyPI
+    name: Build and publish Python 🐍 distributions 📦 TestPyPI
     runs-on: ubuntu-latest
 
     steps:
@@ -33,11 +30,19 @@ jobs:
       - name: Build
         run: |
           poetry build
-      
+
+      - name: Publish distribution 📦 to Test PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.TEST_PYPI_TOKEN }}
+          repository_url: https://test.pypi.org/legacy/
+
       - name: Publish distribution 📦 to PyPI
+        if: startsWith(github.ref, 'refs/tags')
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_TOKEN }}
+        
   
 
 
