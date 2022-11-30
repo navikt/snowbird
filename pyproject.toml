@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "snowbird"
-version = "0.0.4"
+version = "0.0.5"
 description = "Snowbird helps configure Snowflake resources for dataproducts."
 readme = "README.md"
 authors = ["pbencze <paul@idelab.com>"]
