@@ -29,9 +29,12 @@ jobs:
 
       - name: Build
         run: |
+          rm -r dist
           poetry build
+          poetry check
 
       - name: Publish distribution 📦 to Test PyPI
+        if: ${{ !startsWith(github.ref, 'refs/tags') }}
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.TEST_PYPI_TOKEN }}
