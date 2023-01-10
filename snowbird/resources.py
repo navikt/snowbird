@@ -31,6 +31,7 @@ def create_databases(conn: SnowflakeConnector, spec: List[Databases]) -> None:
             db: Database = item[database]
             for schema in db.schemas:
                 statement = f"CREATE SCHEMA IF NOT EXISTS {database}.{schema}"
+                execute_statement(conn, statement)
 
 
 def create_warehouses(conn: SnowflakeConnector, spec: List[Warehouses]) -> None:
