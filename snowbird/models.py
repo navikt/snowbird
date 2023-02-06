@@ -5,7 +5,6 @@ from pydantic import BaseModel
 
 
 def get_valid_permifrost_dict(model: Dict):
-
     res = {}
 
     for k, v in model.items():
@@ -14,7 +13,7 @@ def get_valid_permifrost_dict(model: Dict):
                 for sk in el.values():
                     sk.pop("schemas", None)
                     res[k] = v
-        elif k == "users":
+        elif k == "users" and v!= None:
             for el in v:
                 for sk in el.values():
                     sk.pop("owner", None)
@@ -23,8 +22,8 @@ def get_valid_permifrost_dict(model: Dict):
             for el in v:
                 for sk in el.values():
                     sk.pop("integrations", None)
-                    sk.pop("owns", None)
-                    sk.pop("owner", None)
+                    #sk.pop("owns", None)
+                    #sk.pop("owner", None)
             res[k] = v
         elif k == "warehouses":
             for el in v:
@@ -32,13 +31,12 @@ def get_valid_permifrost_dict(model: Dict):
                     sk.pop("initially_suspended", None)
                     sk.pop("auto_suspend", None)
             res[k] = v
-
     return res
 
 
 def permifrost_dumps(v, *, default):
     f = get_valid_permifrost_dict(v)
-    return json.dumps(f, default=default)
+    return f #json.dumps(f, default=default)
 
 
 class DictModel(BaseModel):
@@ -99,7 +97,6 @@ class Role(BaseModel):
     member_of: Optional[List[str]]
     privileges: Optional[Privileges]
     owns: Optional[Resources]
-
 
 class Roles(DictModel):
     __root__: Dict[str, Role]
