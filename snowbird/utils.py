@@ -19,7 +19,6 @@ def print_command(command):
 
 
 def load_specs(spec, conn: SnowflakeConnector = None):
-    print(spec)
     try:
         spec_loader = SnowflakeSpecLoader(spec_path=spec, conn=conn)
         return spec_loader

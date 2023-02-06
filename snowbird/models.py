@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -36,7 +36,7 @@ def get_valid_permifrost_dict(model: Dict):
 
 def permifrost_dumps(v, *, default):
     f = get_valid_permifrost_dict(v)
-    return f #json.dumps(f, default=default)
+    return json.dumps(f, default=default)
 
 
 class DictModel(BaseModel):
@@ -89,12 +89,11 @@ class Resources(BaseModel):
     schemas: Optional[List[str]]
     tables: Optional[List[str]]
 
-
 class Role(BaseModel):
     owner: Optional[str]
     warehouses: Optional[List[str]]
     integrations: Optional[List[str]]
-    member_of: Optional[List[str]]
+    member_of: Optional[Any]
     privileges: Optional[Privileges]
     owns: Optional[Resources]
 
