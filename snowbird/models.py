@@ -1,42 +1,6 @@
-import json
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
-
-
-def get_valid_permifrost_dict(model: Dict):
-    res = {}
-
-    for k, v in model.items():
-        if k == "databases":
-            for el in v:
-                for sk in el.values():
-                    sk.pop("schemas", None)
-                    res[k] = v
-        elif k == "users" and v!= None:
-            for el in v:
-                for sk in el.values():
-                    sk.pop("owner", None)
-                res[k] = v
-        elif k == "roles":
-            for el in v:
-                for sk in el.values():
-                    sk.pop("integrations", None)
-                    #sk.pop("owns", None)
-                    #sk.pop("owner", None)
-            res[k] = v
-        elif k == "warehouses":
-            for el in v:
-                for sk in el.values():
-                    sk.pop("initially_suspended", None)
-                    sk.pop("auto_suspend", None)
-            res[k] = v
-    return res
-
-
-def permifrost_dumps(v, *, default):
-    f = get_valid_permifrost_dict(v)
-    return json.dumps(f, default=default)
 
 
 class DictModel(BaseModel):
@@ -51,21 +15,27 @@ class DictModel(BaseModel):
 
 class Database(BaseModel):
     shared: Optional[bool]
+class SnowbirdDatabase(Database):
     schemas: Optional[List[str]]
 
 
 class Databases(DictModel):
     __root__: Dict[str, Database]
+class SnowbirdDatabases(Databases):
+    __root__: Dict[str, SnowbirdDatabase]
 
 
 class Warehouse(BaseModel):
     size: str
+class SnowbirdWarehouse(Warehouse):
     initially_suspended: bool = True
     auto_suspend: int = 2
 
 
 class Warehouses(DictModel):
     __root__: Dict[str, Warehouse]
+class SnowbirdWarehouses(Warehouses):
+    __root__: Dict[str, SnowbirdWarehouse]
 
 
 class Membership(BaseModel):
@@ -90,34 +60,42 @@ class Resources(BaseModel):
     tables: Optional[List[str]]
 
 class Role(BaseModel):
-    owner: Optional[str]
     warehouses: Optional[List[str]]
-    integrations: Optional[List[str]]
     member_of: Optional[Any]
     privileges: Optional[Privileges]
+class SnowbirdRole(Role):
+    integrations: Optional[List[str]]
     owns: Optional[Resources]
+    owner: Optional[str]
 
 class Roles(DictModel):
     __root__: Dict[str, Role]
+class SnowbirdRoles(Roles):
+    __root__: Dict[str, SnowbirdRole]
 
 
 class User(BaseModel):
-    owner: Optional[str]
     can_login: Optional[bool]
     member_of: Optional[List[str]]
+class SnowbirdUser(User):
+    owner: Optional[str]
 
 
 class Users(DictModel):
     __root__: Dict[str, User]
+class SnowbirdUsers(Users):
+    __root__: Dict[str, SnowbirdUser]
 
 
-class SnowbirdModel(BaseModel):
+class PermifrostModel(BaseModel):
     databases: Optional[List[Databases]]
     warehouses: Optional[List[Warehouses]]
     roles: Optional[List[Roles]]
     users: Optional[List[Users]]
 
 
-class PermifrostModel(SnowbirdModel):
-    class Config:
-        json_dumps = permifrost_dumps
+class SnowbirdModel(PermifrostModel):
+    databases: Optional[List[SnowbirdDatabases]]
+    warehouses: Optional[List[SnowbirdWarehouses]]
+    roles: Optional[List[SnowbirdRoles]]
+    users: Optional[List[SnowbirdUsers]]

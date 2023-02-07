@@ -1,10 +1,8 @@
-import json
 import tempfile
 from pathlib import Path
 
 import yaml
 from permifrost.spec_file_loader import ensure_valid_schema, load_spec
-from permifrost.types import PermifrostSpecSchema
 
 from snowbird.loader import load_snowbird_spec
 from snowbird.models import Database, PermifrostModel, SnowbirdModel
@@ -20,12 +18,10 @@ def test_updating_snowflake():
 
 def test_to_permifrost():
     # get snowbird model
-    model = load_snowbird_spec("snowflake_no_write.yml", path)
-
+    sm = load_snowbird_spec("snowflake_no_write.yml", path)
     # convert to permifrost model
-    pm = PermifrostModel(**model.dict())
-
-    spec = json.loads(pm.json())
+    pm = PermifrostModel(**sm.dict())
+    spec = pm.dict(exclude_none=True)
     res = ensure_valid_schema(spec)
 
     for error in res:
