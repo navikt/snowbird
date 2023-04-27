@@ -12,9 +12,15 @@ from snowbird.models import Database, PermifrostModel, SnowbirdModel
 path = Path(__file__).parent / "infrastructure"
 
 
-def test_updating_snowflake():
+def test_load_spec():
 
     model = load_snowbird_spec("snowflake.yml", path)
+    assert type(model) == SnowbirdModel
+
+    model = load_snowbird_spec("read_only_role.yml", path)
+    assert type(model) == SnowbirdModel
+
+    model = load_snowbird_spec("snowflake_no_write.yml", path)
     assert type(model) == SnowbirdModel
 
 

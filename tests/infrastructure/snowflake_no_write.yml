@@ -12,16 +12,6 @@ databases:
 
 # Roles
 roles:
-    - sysadmin:
-        warehouses:
-            - vdl_ssb_loading
-            - vdl_ssb_reporting
-            - vdl_ssb_transforming
-        member_of:
-            include:
-            - "*"
-            exclude:
-            - accountadmin
     ## System Roles
     - vdl_ssb_loader:
         member_of:

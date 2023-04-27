@@ -16,6 +16,8 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "cwd": "${fileDirname}",
+            "justMyCode": true,
+            "python": "${workspaceFolder}/.venv/bin/python",
             "env": {"PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/snowbird"},
         }
     ]

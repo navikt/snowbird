@@ -16,18 +16,24 @@ class DictModel(BaseModel):
 
 class Database(BaseModel):
     shared: Optional[bool]
+
+
 class SnowbirdDatabase(Database):
     schemas: Optional[List[str]]
 
 
 class Databases(DictModel):
     __root__: Dict[str, Database]
+
+
 class SnowbirdDatabases(Databases):
     __root__: Dict[str, SnowbirdDatabase]
 
 
 class Warehouse(BaseModel):
     size: str
+
+
 class SnowbirdWarehouse(Warehouse):
     initially_suspended: bool = True
     auto_suspend: int = 2
@@ -35,6 +41,8 @@ class SnowbirdWarehouse(Warehouse):
 
 class Warehouses(DictModel):
     __root__: Dict[str, Warehouse]
+
+
 class SnowbirdWarehouses(Warehouses):
     __root__: Dict[str, SnowbirdWarehouse]
 
@@ -60,18 +68,23 @@ class Resources(BaseModel):
     schemas: Optional[List[str]]
     tables: Optional[List[str]]
 
+
 class Role(BaseModel):
     warehouses: Optional[List[str]]
-    integrations: Optional[List[str]]
-    # member_of: Optional[List[str]]
+    member_of: Optional[List[str]]
     privileges: Optional[Privileges]
+
+
 class SnowbirdRole(Role):
     integrations: Optional[List[str]]
     owns: Optional[Resources]
     owner: Optional[str]
 
+
 class Roles(DictModel):
     __root__: Dict[str, Role]
+
+
 class SnowbirdRoles(Roles):
     __root__: Dict[str, SnowbirdRole]
 
@@ -79,12 +92,16 @@ class SnowbirdRoles(Roles):
 class User(BaseModel):
     can_login: Optional[bool]
     member_of: Optional[List[str]]
+
+
 class SnowbirdUser(User):
     owner: Optional[str]
 
 
 class Users(DictModel):
     __root__: Dict[str, User]
+
+
 class SnowbirdUsers(Users):
     __root__: Dict[str, SnowbirdUser]
 

@@ -19,10 +19,10 @@ def test_updating_snowflake():
 def test_to_permifrost():
     # get snowbird model
     sm = load_snowbird_spec("snowflake_no_write.yml", path)
-    
+
     # convert to permifrost model
     pm = PermifrostModel(**sm.dict())
-    
+
     spec = pm.dict(exclude_none=True)
 
     res = ensure_valid_schema(spec)

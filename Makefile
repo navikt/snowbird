@@ -5,4 +5,4 @@ build:
 	twine check ./dist/*
 
 test:
-	pytest ./tests
+	poetry run pytest ./tests
