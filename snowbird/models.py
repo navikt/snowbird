@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -96,7 +96,8 @@ class Role(BaseModel):
     owner: Optional[str]
     warehouses: Optional[List[str]]
     integrations: Optional[List[str]]
-    member_of: Optional[List[str]]
+    # member_of: Optional[List[str]]
+    member_of: Optional[Any]
     privileges: Optional[Privileges]
     owns: Optional[Resources]
 
