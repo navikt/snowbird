@@ -46,6 +46,3 @@ def test_schemas():
             db: Database = item[name]
             for schema in db.schemas:
                 assert type(schema) == str
-
-
-test_to_permifrost()

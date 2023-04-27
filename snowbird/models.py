@@ -1,3 +1,4 @@
+import json
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
@@ -61,7 +62,8 @@ class Resources(BaseModel):
 
 class Role(BaseModel):
     warehouses: Optional[List[str]]
-    member_of: Optional[Any]
+    integrations: Optional[List[str]]
+    # member_of: Optional[List[str]]
     privileges: Optional[Privileges]
 class SnowbirdRole(Role):
     integrations: Optional[List[str]]
