@@ -56,6 +56,8 @@ def create_roles(conn: SnowflakeConnector, spec: List[Roles]) -> None:
         for role in item.keys():
             statement = f"CREATE ROLE IF NOT EXISTS {role}"
             execute_statement(conn, statement)
+            statement = f"GRANT ROLE {role} TO ROLE SYSADMIN"
+            execute_statement(conn, statement)
 
 
 def create_users(conn: SnowflakeConnector, spec: List[Users]) -> None:

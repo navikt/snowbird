@@ -58,10 +58,9 @@ def write_snowbird_model_to_permifrost_file(
     try:
         pm = PermifrostModel(**model.dict())
     except Exception as e:
-        LOGGER.error(f"Error parsing json as permifrost formatspec file. {e}")
+        LOGGER.error(f"Error making PermifrostModel of supplied SnowbirdModel. {e}")
 
     try:
-        js = json.loads(pm.json())
-        yaml.dump(js, tf)
+        yaml.dump(pm.dict(exclude_none=True), tf)
     except Exception as e:
         LOGGER.error(f"Error writing permifrost model to file. {e}")

@@ -8,7 +8,15 @@ In addition to the capabilities provided by permifrost snowbird also enables dec
 
 ## Installation
 
-pip install snowbird
+```shell
+pip install snowbird 
+```
+
+or 
+
+```shell
+pip install snowbird@git+https://github.com/navikt/snowbird.git
+```
 
 ## Example
 
