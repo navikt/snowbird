@@ -13,7 +13,6 @@ path = Path(__file__).parent / "infrastructure"
 
 
 def test_load_spec():
-
     model = load_snowbird_spec("snowflake.yml", path)
     assert type(model) == SnowbirdModel
 
@@ -29,9 +28,9 @@ def test_to_permifrost():
     model = load_snowbird_spec("snowflake.yml", path)
 
     # convert to permifrost model
-    pm = PermifrostModel(**model.dict())
+    pm = PermifrostModel(**model.model_dump())
 
-    spec = json.loads(pm.json())
+    spec = json.loads(pm.model_dump_json())
     res = ensure_valid_schema(spec)
 
     for error in res:
@@ -44,7 +43,6 @@ def test_to_permifrost():
 
 
 def test_schemas():
-
     model = load_snowbird_spec("snowflake.yml", path)
 
     for item in model.databases:

@@ -1,33 +1,33 @@
 import json
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, RootModel
 
 
-class DictModel(BaseModel):
-    __root__: Dict[str, BaseModel]
+class DictModel(RootModel):
+    root: Dict[str, BaseModel]
 
     def __getitem__(self, item):
-        return self.__root__[item]
+        return self.root[item]
 
     def keys(self):
-        return self.__root__.keys()
+        return self.root.keys()
 
 
 class Database(BaseModel):
-    shared: Optional[bool]
+    shared: Optional[bool] = None
 
 
 class SnowbirdDatabase(Database):
-    schemas: Optional[List[str]]
+    schemas: Optional[List[str]] = None
 
 
 class Databases(DictModel):
-    __root__: Dict[str, Database]
+    root: Dict[str, Database]
 
 
 class SnowbirdDatabases(Databases):
-    __root__: Dict[str, SnowbirdDatabase]
+    root: Dict[str, SnowbirdDatabase]
 
 
 class Warehouse(BaseModel):
@@ -40,81 +40,81 @@ class SnowbirdWarehouse(Warehouse):
 
 
 class Warehouses(DictModel):
-    __root__: Dict[str, Warehouse]
+    root: Dict[str, Warehouse]
 
 
 class SnowbirdWarehouses(Warehouses):
-    __root__: Dict[str, SnowbirdWarehouse]
+    root: Dict[str, SnowbirdWarehouse]
 
 
 class Membership(BaseModel):
-    include: Optional[List[str]]
-    exclude: Optional[List[str]]
+    include: Optional[List[str]] = None
+    exclude: Optional[List[str]] = None
 
 
 class PrivilegeRules(BaseModel):
-    read: Optional[List[str]]
-    write: Optional[List[str]]
+    read: Optional[List[str]] = None
+    write: Optional[List[str]] = None
 
 
 class Privileges(BaseModel):
-    databases: Optional[PrivilegeRules]
-    schemas: Optional[PrivilegeRules]
-    tables: Optional[PrivilegeRules]
+    databases: Optional[PrivilegeRules] = None
+    schemas: Optional[PrivilegeRules] = None
+    tables: Optional[PrivilegeRules] = None
 
 
 class Resources(BaseModel):
-    databases: Optional[List[str]]
-    schemas: Optional[List[str]]
-    tables: Optional[List[str]]
+    databases: Optional[List[str]] = None
+    schemas: Optional[List[str]] = None
+    tables: Optional[List[str]] = None
 
 
 class Role(BaseModel):
-    warehouses: Optional[List[str]]
-    member_of: Optional[List[str]]
-    privileges: Optional[Privileges]
+    warehouses: Optional[List[str]] = None
+    member_of: Optional[List[str]] = None
+    privileges: Optional[Privileges] = None
 
 
 class SnowbirdRole(Role):
-    integrations: Optional[List[str]]
-    owns: Optional[Resources]
-    owner: Optional[str]
+    integrations: Optional[List[str]] = None
+    owns: Optional[Resources] = None
+    owner: Optional[str] = None
 
 
 class Roles(DictModel):
-    __root__: Dict[str, Role]
+    root: Dict[str, Role]
 
 
 class SnowbirdRoles(Roles):
-    __root__: Dict[str, SnowbirdRole]
+    root: Dict[str, SnowbirdRole]
 
 
 class User(BaseModel):
-    can_login: Optional[bool]
-    member_of: Optional[List[str]]
+    can_login: Optional[bool] = None
+    member_of: Optional[List[str]] = None
 
 
 class SnowbirdUser(User):
-    owner: Optional[str]
+    owner: Optional[str] = None
 
 
 class Users(DictModel):
-    __root__: Dict[str, User]
+    root: Dict[str, User]
 
 
 class SnowbirdUsers(Users):
-    __root__: Dict[str, SnowbirdUser]
+    root: Dict[str, SnowbirdUser]
 
 
 class PermifrostModel(BaseModel):
-    databases: Optional[List[Databases]]
-    warehouses: Optional[List[Warehouses]]
-    roles: Optional[List[Roles]]
-    users: Optional[List[Users]]
+    databases: Optional[List[Databases]] = None
+    warehouses: Optional[List[Warehouses]] = None
+    roles: Optional[List[Roles]] = None
+    users: Optional[List[Users]] = None
 
 
 class SnowbirdModel(PermifrostModel):
-    databases: Optional[List[SnowbirdDatabases]]
-    warehouses: Optional[List[SnowbirdWarehouses]]
-    roles: Optional[List[SnowbirdRoles]]
-    users: Optional[List[SnowbirdUsers]]
+    databases: Optional[List[SnowbirdDatabases]] = None
+    warehouses: Optional[List[SnowbirdWarehouses]] = None
+    roles: Optional[List[SnowbirdRoles]] = None
+    users: Optional[List[SnowbirdUsers]] = None

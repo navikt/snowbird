@@ -11,7 +11,6 @@ path = Path(__file__).parent / "infrastructure"
 
 
 def test_updating_snowflake():
-
     model = load_snowbird_spec("snowflake_no_write.yml", path)
     assert type(model) == SnowbirdModel
 
@@ -21,9 +20,9 @@ def test_to_permifrost():
     sm = load_snowbird_spec("snowflake_no_write.yml", path)
 
     # convert to permifrost model
-    pm = PermifrostModel(**sm.dict())
+    pm = PermifrostModel(**sm.model_dump())
 
-    spec = pm.dict(exclude_none=True)
+    spec = pm.model_dump(exclude_none=True)
 
     res = ensure_valid_schema(spec)
 
@@ -37,7 +36,6 @@ def test_to_permifrost():
 
 
 def test_schemas():
-
     model = load_snowbird_spec("snowflake_no_write.yml", path)
 
     for item in model.databases:
