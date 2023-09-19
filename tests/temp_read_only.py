@@ -22,7 +22,7 @@ def test_to_permifrost():
     model = load_snowbird_spec("read_only_role.yml", path)
 
     # convert to permifrost model
-    pm = PermifrostModel(**model.dict())
+    pm = PermifrostModel(**model.model_dump())
 
     spec = json.loads(pm.model_dump_json())
     res = ensure_valid_schema(spec)

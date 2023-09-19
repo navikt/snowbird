@@ -24,7 +24,6 @@ def read_json(source: str) -> Dict:
 def get_spec_file_paths(
     spec_file: str = "snowflake.yml", root_dir: Path = None
 ) -> Iterator[Path]:
-
     root_dir = root_dir or Path.cwd()
 
     infra_dir = root_dir
@@ -38,7 +37,6 @@ def get_spec_file_paths(
 
 
 def load_snowbird_spec(spec_file: str, root_dir: Path = None) -> SnowbirdModel:
-
     spec_file = get_spec_file_paths(spec_file, root_dir)
     try:
         js = read_json(str(spec_file))
@@ -51,16 +49,15 @@ def load_snowbird_spec(spec_file: str, root_dir: Path = None) -> SnowbirdModel:
 def write_snowbird_model_to_permifrost_file(
     model: SnowbirdModel, tf: tempfile.NamedTemporaryFile
 ) -> str:
-
     if model is None:
         LOGGER.error(f"Could not write model to permifrost. No model supplied")
 
     try:
-        pm = PermifrostModel(**model.dict())
+        pm = PermifrostModel(**model.model_dump())
     except Exception as e:
         LOGGER.error(f"Error making PermifrostModel of supplied SnowbirdModel. {e}")
 
     try:
-        yaml.dump(pm.dict(exclude_none=True), tf)
+        yaml.dump(pm.model_dump(exclude_none=True), tf)
     except Exception as e:
         LOGGER.error(f"Error writing permifrost model to file. {e}")
