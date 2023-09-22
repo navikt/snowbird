@@ -11,6 +11,10 @@ from snowbird.models import (
     Databases,
     Roles,
     SnowbirdModel,
+    SnowbirdRole,
+    SnowbirdRoles,
+    SnowbirdShare,
+    SnowbirdShares,
     Users,
     Warehouse,
     Warehouses,
@@ -84,11 +88,68 @@ def create_users(conn: SnowflakeConnector, spec: List[Users]) -> None:
                 print_command(command)
 
 
+def _validate_shares_spec(spec: List[SnowbirdShares]) -> bool:
+    for item in spec:
+        for share in item.keys():
+            props: SnowbirdShare = item[share]
+            if props.privileges.tables != None:
+                raise NotImplementedError("Sharing tables is not implemented.")
+            for key, values in props.privileges.databases:
+                if key == "write" and values is not None:
+                    raise ValueError("A share cannot write to an database.")
+            for key, values in props.privileges.schemas:
+                if key == "write" and values is not None:
+                    raise ValueError("A share cannot write to a schema.")
+    return True
+
+
+def _create_shares_execution_plan(spec: List[SnowbirdShares]) -> List[str]:
+    execution_plan = []
+    for item in spec:
+        for share in item.keys():
+            props: SnowbirdShare = item[share]
+            execution_plan.append("USE ROLE ACCOUNTADMIN")
+            execution_plan.append(
+                f"GRANT CREATE SHARE ON ACCOUNT TO ROLE {props.owner}"
+            )
+            execution_plan.append(f"USE ROLE {props.owner}")
+            execution_plan.append(f"CREATE SHARE IF NOT EXISTS {share}")
+            execution_plan.append(
+                f"REVOKE CREATE SHARE ON ACCOUNT FROM ROLE {props.owner}"
+            )
+            execution_plan.append(f"USE ROLE SYSADMIN")
+            for key, values in props.privileges.databases:
+                if key == "read":
+                    for db in values:
+                        execution_plan.append(
+                            f"GRANT USAGE ON DATABASE {db} TO SHARE {share}"
+                        )
+            for key, values in props.privileges.schemas:
+                if key == "read":
+                    for schema in values:
+                        execution_plan.append(
+                            f"GRANT USAGE ON SCHEMA {schema} TO SHARE {share}"
+                        )
+            consumers = str.join(",", props.consumers)
+            execution_plan.append(f"USE ROLE {props.owner}")
+            execution_plan.append(f"ALTER SHARE {share} SET ACCOUNTS = {consumers}")
+            return execution_plan
+
+
+def create_shares(conn: SnowflakeConnector, spec: List[SnowbirdShares]) -> None:
+    print("create shares")
+    # execute_statement(conn, "USE ROLE USERADMIN")
+    if _validate_shares_spec(spec=spec) != True:
+        raise Exception("Something went wrong validating Shares specification.")
+    execution_plan = _create_shares_execution_plan(spec=spec)
+    for statement in execution_plan:
+        execute_statement(conn, statement)
+
+
 # resource creation not part of permifrost. We therefore generate our own resource creation queries
 def create_snowflake_resources(
     conn: SnowflakeConnector, path: str = None, file: str = None
 ) -> SnowbirdModel:
-
     model = None
 
     try:
@@ -110,6 +171,9 @@ def create_snowflake_resources(
         if model.users is not None:
             create_users(conn, model.users)
 
+        if model.shares is not None:
+            create_shares(conn, model.shares)
+
     except Exception as e:
         print(f"Error creating resources: {str(e)}")
 
@@ -120,7 +184,6 @@ def create_snowflake_resources(
 def run_permifrost(
     conn: SnowflakeConnector, spec_file: str = None, root_dir: str = None
 ):
-
     LOGGER.info(f"Run permifrost with spec file {spec_file}")
 
     if not Path(spec_file).is_file:
