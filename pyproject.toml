@@ -7,7 +7,7 @@ authors = ["pbencze <paul@idelab.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-permifrost = "^0.15.1"
+permifrost = "^0.15.4"
 pydantic = "^2.3.0"
 PyYAML = "^6.0"
 click = "^8.1.7"
