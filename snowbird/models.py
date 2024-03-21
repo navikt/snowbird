@@ -106,6 +106,16 @@ class SnowbirdUsers(Users):
     root: Dict[str, SnowbirdUser]
 
 
+class SnowbirdShare(BaseModel):
+    owner: str = None
+    consumers: List[str] = None
+    privileges: Privileges = None
+
+
+class SnowbirdShares(DictModel):
+    root: Dict[str, SnowbirdShare]
+
+
 class PermifrostModel(BaseModel):
     databases: Optional[List[Databases]] = None
     warehouses: Optional[List[Warehouses]] = None
@@ -118,3 +128,4 @@ class SnowbirdModel(PermifrostModel):
     warehouses: Optional[List[SnowbirdWarehouses]] = None
     roles: Optional[List[SnowbirdRoles]] = None
     users: Optional[List[SnowbirdUsers]] = None
+    shares: Optional[List[SnowbirdShares]] = None
