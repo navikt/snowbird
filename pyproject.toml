@@ -11,6 +11,7 @@ permifrost = "^0.15.4"
 pydantic = "^2.3.0"
 PyYAML = "^6.0"
 click = "^8.1.7"
+snowflake-sqlalchemy = "^1.5.1"
 
 [tool.poetry.group.dev.dependencies]
 twine = "^4.0.2"
