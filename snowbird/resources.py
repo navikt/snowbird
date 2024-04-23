@@ -146,6 +146,23 @@ def create_shares(conn: SnowflakeConnector, spec: List[SnowbirdShares]) -> None:
         execute_statement(conn, statement)
 
 
+def grant_extra_writes_to_roles(conn: SnowflakeConnector, spec: List[Roles]) -> None:
+    print("grant extra writes to roles")
+    execution_plan = []
+    execution_plan.append("USE ROLE USERADMIN")
+    for item in spec:
+        for role in item.keys():
+            props: SnowbirdRole = item[role]
+            for key, values in props.privileges.schemas:
+                if key == "write":
+                    for schema in values:
+                        execution_plan.append(
+                            f"grant create dynamic table on schema {schema} to role {role}"
+                        )
+    for statement in execution_plan:
+        execute_statement(conn=conn, statement=statement)
+
+
 # resource creation not part of permifrost. We therefore generate our own resource creation queries
 def create_snowflake_resources(
     conn: SnowflakeConnector, path: str = None, file: str = None
@@ -167,6 +184,7 @@ def create_snowflake_resources(
 
         if model.roles is not None:
             create_roles(conn, model.roles)
+            grant_extra_writes_to_roles(conn=conn, spec=model.roles)
 
         if model.users is not None:
             create_users(conn, model.users)
