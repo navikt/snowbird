@@ -5,3 +5,5 @@
 poetry.lock
 dist/
 .venv
+build
+snowbird.egg-info
