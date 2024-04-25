@@ -146,19 +146,29 @@ def create_shares(conn: SnowflakeConnector, spec: List[SnowbirdShares]) -> None:
         execute_statement(conn, statement)
 
 
-def grant_extra_writes_to_roles(conn: SnowflakeConnector, spec: List[Roles]) -> None:
-    print("grant extra writes to roles")
+def _grant_extra_writes_to_roles_execution_plan(spec: List[Roles]) -> List[str]:
     execution_plan = []
-    execution_plan.append("USE ROLE USERADMIN")
+    execution_plan.append("use role securityadmin")
     for item in spec:
         for role in item.keys():
             props: SnowbirdRole = item[role]
-            for key, values in props.privileges.schemas:
-                if key == "write":
-                    for schema in values:
-                        execution_plan.append(
-                            f"grant create dynamic table on schema {schema} to role {role}"
-                        )
+            print(props)
+            if props.privileges.schemas.write:
+                for schema in props.privileges.schemas.write:
+                    print(f"write schemas: {schema}")
+                    execution_plan.extend(
+                        [
+                            f"grant create dynamic table on schema {schema} to role {role}",
+                            f"grant create masking policy on schema {schema} to role {role}",
+                            f"grant create row access policy on schema {schema} to role {role}",
+                        ]
+                    )
+    return execution_plan
+
+
+def grant_extra_writes_to_roles(conn: SnowflakeConnector, spec: List[Roles]) -> None:
+    print("grant extra writes to roles")
+    execution_plan = _grant_extra_writes_to_roles_execution_plan(spec)
     for statement in execution_plan:
         execute_statement(conn=conn, statement=statement)
 
