@@ -25,7 +25,6 @@ setup(
         "pydantic",
         "pyyaml",
         "click",
-        "snowflake-sqlalchemy",
     ],
     extras_require={
         "dev": [
