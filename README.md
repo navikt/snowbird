@@ -28,7 +28,7 @@ snowbird run
 
 ### Cloning
 
-You can clone a database by running the commnad $ snowbird clone. Optionally give a role usage to the new database with --usage
+You can clone a database by running the commnad $ snowbird clone. The destination db will be replaced if it's already exists. Optionally give a role usage to the new database with --usage
 
 **Command**
 
