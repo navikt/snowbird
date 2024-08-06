@@ -1,7 +1,6 @@
 import logging
 
 from permifrost.snowflake_connector import SnowflakeConnector
-from sqlalchemy import text
 
 LOGGER = logging.getLogger(__file__)
 
@@ -20,15 +19,15 @@ def create_db_clone(src: str, dst: str, usage: tuple[str]):
         LOGGER.error(f"Error creating Snowflake connection. {e}")
         return
 
-    conn.run_query(text(use_role))
-    conn.run_query(text(create_sql))
-    dynamic_tables = conn.run_query(text(show_dynamic_tables))
+    conn.run_query(use_role)
+    conn.run_query(create_sql)
+    dynamic_tables = conn.run_query(show_dynamic_tables)
     for suspend_dynamic_table in _suspend_dynamic_tables(
         db=clone_db, dynamic_tables=dynamic_tables
     ):
-        conn.run_query(text(suspend_dynamic_table))
+        conn.run_query(suspend_dynamic_table)
     for grant_usage_to_role in _grant_usage(db=clone_db, roles=usage):
-        conn.run_query(text(grant_usage_to_role))
+        conn.run_query(grant_usage_to_role)
 
 
 def _suspend_dynamic_tables(db, dynamic_tables: list[dict]) -> list[str]:

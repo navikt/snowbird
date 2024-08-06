@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import List
 
 from permifrost.snowflake_connector import SnowflakeConnector
-from sqlalchemy import text
 
 from snowbird.loader import get_spec_file_paths, load_snowbird_spec
 from snowbird.models import (
@@ -233,7 +232,7 @@ def run_permifrost(
             status = None
             if not query.get("already_granted"):
                 try:
-                    conn.run_query(text(query.get("sql", "")))
+                    conn.run_query(query.get("sql", ""))
                     status = True
                 except Exception:
                     status = False
