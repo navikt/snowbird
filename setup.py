@@ -21,6 +21,7 @@ setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
+        "snowflake-sqlalchemy==1.5.3",
         "permifrost",
         "pydantic",
         "pyyaml",
