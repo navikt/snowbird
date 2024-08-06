@@ -3,6 +3,7 @@ import logging
 from permifrost import SpecLoadingError
 from permifrost.snowflake_connector import SnowflakeConnector
 from permifrost.snowflake_spec_loader import SnowflakeSpecLoader
+from sqlalchemy import text
 
 LOGGER = logging.getLogger()
 
@@ -33,7 +34,7 @@ def execute_statement(
     result = None
     try:
         LOGGER.info(statement)
-        result = conn.run_query(statement)
+        result = conn.run_query(text(statement))
         status = True
     except Exception as e:
         status = False
