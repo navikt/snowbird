@@ -12,4 +12,4 @@ install:
 	rm -rf .venv
 	python3.11 -m venv .venv && \
 		${PY} pip install --upgrade pip && \
-		${PY} pip install .[dev]
+		${PY} pip install -e .[dev]

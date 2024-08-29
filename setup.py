@@ -21,7 +21,8 @@ setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        "snowflake-sqlalchemy==1.5.3",
+        "sqlalchemy<2.0.0",  # sqlalchemy 2.0.0 is not compatible with permifrost 0.15.4. Issue: https://gitlab.com/gitlab-data/permifrost/-/issues/209
+        "snowflake-sqlalchemy",
         "permifrost",
         "pydantic",
         "pyyaml",
