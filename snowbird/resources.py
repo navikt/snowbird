@@ -188,22 +188,33 @@ def create_snowflake_resources(
     try:
         if model.databases is not None:
             create_databases(conn, model.databases)
+    except Exception as e:
+        raise Exception(f"Error creating databases: {str(e)}")
 
+    try:
         if model.warehouses is not None:
             create_warehouses(conn, model.warehouses)
+    except Exception as e:
+        raise Exception(f"Error creating warehouses: {str(e)}")
 
+    try:
         if model.roles is not None:
             create_roles(conn, model.roles)
             grant_extra_writes_to_roles(conn=conn, spec=model.roles)
+    except Exception as e:
+        raise Exception(f"Error creating roles: {str(e)}")
 
+    try:
         if model.users is not None:
             create_users(conn, model.users)
+    except Exception as e:
+        raise Exception(f"Error creating users: {str(e)}")
 
+    try:
         if model.shares is not None:
             create_shares(conn, model.shares)
-
     except Exception as e:
-        print(f"Error creating resources: {str(e)}")
+        raise Exception(f"Error creating shares: {str(e)}")
 
     return model
 
