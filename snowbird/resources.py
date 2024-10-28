@@ -24,15 +24,18 @@ from snowbird.utils import execute_statement, load_specs, print_command
 LOGGER = logging.getLogger()
 
 
-def create_databases(conn: SnowflakeConnector, spec: List[Databases], data_retention_time_days: int) -> None:
+def create_databases(conn: SnowflakeConnector, spec: List[Databases]) -> None:
     print("create databases")
     execute_statement(conn, "USE ROLE SYSADMIN")
     for item in spec:
         for database in item.keys():
-            statement = f"CREATE DATABASE IF NOT EXISTS {database} DATA_RETENTION_TIME_IN_DAYS = {data_retention_time_days}"
+            db: Database = item[database]
+            data_retention_time_days = db.data_retention_time_days
+            statement = f"CREATE DATABASE IF NOT EXISTS {database}"
+            execute_statement(conn, statement)
+            statement = f"ALTER DATABASE {database} set DATA_RETENTION_TIME_IN_DAYS = {data_retention_time_days}"
             execute_statement(conn, statement)
 
-            db: Database = item[database]
             if db.schemas:
                 for schema in db.schemas:
                     statement = f"CREATE SCHEMA IF NOT EXISTS {database}.{schema}"
