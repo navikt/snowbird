@@ -20,6 +20,7 @@ class Database(BaseModel):
 
 class SnowbirdDatabase(Database):
     schemas: Optional[List[str]] = None
+    data_retention_time_days: int
 
 
 class Databases(DictModel):
