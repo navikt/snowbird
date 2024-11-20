@@ -155,11 +155,15 @@ def create_shares(conn: SnowflakeConnector, spec: List[SnowbirdShares]) -> None:
 
 def _grant_extra_writes_to_roles_execution_plan(spec: List[Roles]) -> List[str]:
     execution_plan = []
-    execution_plan.append("use role securityadmin")
+    
     for item in spec:
         for role in item.keys():
             props: SnowbirdRole = item[role]
             print(props)
+            if props.privileges is None:
+                continue
+            if props.privileges.schemas is None:
+                continue
             if props.privileges.schemas.write:
                 for schema in props.privileges.schemas.write:
                     print(f"write schemas: {schema}")
@@ -170,6 +174,8 @@ def _grant_extra_writes_to_roles_execution_plan(spec: List[Roles]) -> List[str]:
                             f"grant create row access policy on schema {schema} to role {role}",
                         ]
                     )
+    if len(execution_plan) > 0:
+        execution_plan.insert(0, "use role securityadmin")
     return execution_plan
 
 
@@ -196,7 +202,7 @@ def create_snowflake_resources(
         if model is None:
             raise Exception()
     except Exception as e:
-       raise LoadSnowbirdSpecError(f"Error parsing file {path}/{file}: {e}")
+        raise LoadSnowbirdSpecError(f"Error parsing file {path}/{file}: {e}")
 
     try:
         if model.databases is not None:
