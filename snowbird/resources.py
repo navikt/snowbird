@@ -54,15 +54,21 @@ def create_warehouses(conn: SnowflakeConnector, spec: List[Warehouses]) -> None:
             execute_statement(conn, statement)
 
 
-def create_roles(conn: SnowflakeConnector, spec: List[Roles]) -> None:
-    print("create roles")
-    execute_statement(conn, "USE ROLE USERADMIN")
+def _create_roles_execution_plan(spec):
+    plan = []
+    plan.append(f"USE ROLE USERADMIN")
     for item in spec:
         for role in item.keys():
-            statement = f"CREATE ROLE IF NOT EXISTS {role}"
-            execute_statement(conn, statement)
-            statement = f"GRANT ROLE {role} TO ROLE SYSADMIN"
-            execute_statement(conn, statement)
+            plan.append(f"CREATE ROLE IF NOT EXISTS {role}")
+            plan.append(f"GRANT ROLE {role} TO ROLE SYSADMIN")
+    return plan
+
+
+def create_roles(conn: SnowflakeConnector, spec: List[Roles]) -> None:
+    print("create roles")
+    execution_plan = _create_roles_execution_plan(spec)
+    for statement in execution_plan:
+        execute_statement(conn, statement)
 
 
 def create_users(conn: SnowflakeConnector, spec: List[Users]) -> None:
@@ -173,8 +179,10 @@ def grant_extra_writes_to_roles(conn: SnowflakeConnector, spec: List[Roles]) -> 
     for statement in execution_plan:
         execute_statement(conn=conn, statement=statement)
 
+
 class LoadSnowbirdSpecError(Exception):
     pass
+
 
 # resource creation not part of permifrost. We therefore generate our own resource creation queries
 def create_snowflake_resources(
