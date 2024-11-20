@@ -173,6 +173,8 @@ def grant_extra_writes_to_roles(conn: SnowflakeConnector, spec: List[Roles]) -> 
     for statement in execution_plan:
         execute_statement(conn=conn, statement=statement)
 
+class LoadSnowbirdSpecError(Exception):
+    pass
 
 # resource creation not part of permifrost. We therefore generate our own resource creation queries
 def create_snowflake_resources(
@@ -183,8 +185,10 @@ def create_snowflake_resources(
     try:
         file_name = file if file else "snowflake.yml"
         model = load_snowbird_spec(file_name, root_dir=Path(path))
+        if model is None:
+            raise Exception()
     except Exception as e:
-        LOGGER.error(f"Error parsing file {path}/{file}: {e}")
+       raise LoadSnowbirdSpecError(f"Error parsing file {path}/{file}: {e}")
 
     try:
         if model.databases is not None:
