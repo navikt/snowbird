@@ -155,7 +155,7 @@ def create_shares(conn: SnowflakeConnector, spec: List[SnowbirdShares]) -> None:
 
 def _grant_extra_writes_to_roles_execution_plan(spec: List[Roles]) -> List[str]:
     execution_plan = []
-    
+
     for item in spec:
         for role in item.keys():
             props: SnowbirdRole = item[role]
@@ -238,6 +238,12 @@ def create_snowflake_resources(
     return model
 
 
+class SnowflakePermissionError(Exception): ...
+
+
+class PermifrostError(Exception): ...
+
+
 # adapted from permifrost cli
 def run_permifrost(
     conn: SnowflakeConnector, spec_file: str = None, root_dir: str = None
@@ -250,8 +256,7 @@ def run_permifrost(
     try:
         execute_statement(conn, "USE ROLE SECURITYADMIN")
     except Exception as e:
-        LOGGER.error(f"Could not set role SECURITYADMIN. {e}")
-        return
+        raise SnowflakePermissionError(f"Could not set role SECURITYADMIN. {e}")
 
     try:
         spec_loader = load_specs(spec_file, conn)
@@ -274,4 +279,6 @@ def run_permifrost(
                 print_command(query)
 
     except Exception as e:
-        LOGGER.info(f"Error running permifrost with spec file {spec_file}. {e}")
+        raise PermifrostError(
+            f"Error running permifrost with spec file {spec_file}. {e}"
+        )
