@@ -1,3 +1,4 @@
+import logging
 import yaml
 from click.testing import CliRunner
 
@@ -54,3 +55,16 @@ roles:
     ]
     print(result)
     assert result == expects
+
+def test_role_is_not_granted_extra_write_privileges_if_privileges_not_specified():
+    test_spec = """
+roles:
+    - snowbird_integration_test_role: {}
+"""
+    test_d = yaml.safe_load(test_spec)
+    logging.error(test_d)
+    spec = SnowbirdModel(**test_d)
+    result = _grant_extra_writes_to_roles_execution_plan(spec.roles)
+    expected = []
+    assert result == expected
+    

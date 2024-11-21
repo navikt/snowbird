@@ -57,15 +57,21 @@ def create_warehouses(conn: SnowflakeConnector, spec: List[Warehouses]) -> None:
             execute_statement(conn, statement)
 
 
-def create_roles(conn: SnowflakeConnector, spec: List[Roles]) -> None:
-    print("create roles")
-    execute_statement(conn, "USE ROLE USERADMIN")
+def _create_roles_execution_plan(spec):
+    plan = []
+    plan.append(f"USE ROLE USERADMIN")
     for item in spec:
         for role in item.keys():
-            statement = f"CREATE ROLE IF NOT EXISTS {role}"
-            execute_statement(conn, statement)
-            statement = f"GRANT ROLE {role} TO ROLE SYSADMIN"
-            execute_statement(conn, statement)
+            plan.append(f"CREATE ROLE IF NOT EXISTS {role}")
+            plan.append(f"GRANT ROLE {role} TO ROLE SYSADMIN")
+    return plan
+
+
+def create_roles(conn: SnowflakeConnector, spec: List[Roles]) -> None:
+    print("create roles")
+    execution_plan = _create_roles_execution_plan(spec)
+    for statement in execution_plan:
+        execute_statement(conn, statement)
 
 
 def create_users(conn: SnowflakeConnector, spec: List[Users]) -> None:
@@ -152,11 +158,15 @@ def create_shares(conn: SnowflakeConnector, spec: List[SnowbirdShares]) -> None:
 
 def _grant_extra_writes_to_roles_execution_plan(spec: List[Roles]) -> List[str]:
     execution_plan = []
-    execution_plan.append("use role securityadmin")
+    
     for item in spec:
         for role in item.keys():
             props: SnowbirdRole = item[role]
             print(props)
+            if props.privileges is None:
+                continue
+            if props.privileges.schemas is None:
+                continue
             if props.privileges.schemas.write:
                 for schema in props.privileges.schemas.write:
                     print(f"write schemas: {schema}")
@@ -167,6 +177,8 @@ def _grant_extra_writes_to_roles_execution_plan(spec: List[Roles]) -> List[str]:
                             f"grant create row access policy on schema {schema} to role {role}",
                         ]
                     )
+    if len(execution_plan) > 0:
+        execution_plan.insert(0, "use role securityadmin")
     return execution_plan
 
 
@@ -175,6 +187,10 @@ def grant_extra_writes_to_roles(conn: SnowflakeConnector, spec: List[Roles]) -> 
     execution_plan = _grant_extra_writes_to_roles_execution_plan(spec)
     for statement in execution_plan:
         execute_statement(conn=conn, statement=statement)
+
+
+class LoadSnowbirdSpecError(Exception):
+    pass
 
 
 # resource creation not part of permifrost. We therefore generate our own resource creation queries
@@ -186,8 +202,10 @@ def create_snowflake_resources(
     try:
         file_name = file if file else "snowflake.yml"
         model = load_snowbird_spec(file_name, root_dir=Path(path))
+        if model is None:
+            raise Exception()
     except Exception as e:
-        LOGGER.error(f"Error parsing file {path}/{file}: {e}")
+        raise LoadSnowbirdSpecError(f"Error parsing file {path}/{file}: {e}")
 
     try:
         if model.databases is not None:
