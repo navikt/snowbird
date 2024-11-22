@@ -4,6 +4,7 @@ version: "1.0"
 databases:
   - demo_db:
       shared: no
+      data_retention_time_days: 1
 # Roles
 roles:
   - testrole_1:

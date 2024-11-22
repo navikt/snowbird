@@ -3,6 +3,7 @@ version: "1.0"
 # Databases
 databases:
     - vdl_ssb:
+        data_retention_time_days: 1
         shared: no
         schemas:
             - raw
