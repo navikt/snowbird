@@ -9,13 +9,15 @@ from snowbird.loader import write_snowbird_model_to_permifrost_file
 from snowbird.resources import create_snowflake_resources, run_permifrost
 
 
+class SnowflakeConnectionError(Exception): ...
+
+
 def run(path: str = None, file: str = None):
 
     try:
         conn = SnowflakeConnector()
     except Exception as e:
-        LOGGER.error(f"Error creating Snowflake connection. {e}")
-        return
+        raise SnowflakeConnectionError(f"Error creating Snowflake connection. {e}")
 
     # create snowflake resources based on snowbird formatted spec file: snowflake.yml
     model = create_snowflake_resources(conn, path, file)
