@@ -1,0 +1,77 @@
+databases:
+  - name: snowbird_test_raw
+    data_retention_time_in_days: 30
+    schemas:
+      - name: one_source
+      - name: another_source
+      - name: snapshots
+  - name: snowbird_test
+    transient: true
+    schemas:
+      - name: staging
+      - name: intermidiate
+      - name: mart
+  - name: snowbird_test__preprod
+    transient: true
+    schemas:
+      - name: staging
+      - name: intermidiate
+      - name: mart
+  - name: snowbird_test_raw__preprod
+    transient: true
+    schemas:
+      - name: one_source
+      - name: another_source
+      - name: snapshots
+
+warehouses:
+  - name: snowbird_test_loader
+  - name: snowbird_test_transformer
+  - name: snowbird_test_reporter
+
+users:
+  - name: srv_snowbird_test
+    type: legacy_service
+
+roles:
+  - name: snowbird_test_loader
+  - name: snowbird_test_transformer
+  - name: snowbird_test_reporter
+
+grants:
+  - role: snowbird_test_loader
+    warehouses:
+      - snowbird_test_loader
+    write_on_schemas:
+      - snowbird_test_raw.one_source
+      - snowbird_test_raw.another_source
+      - snowbird_test_raw__preprod.one_source
+      - snowbird_test_raw__preprod.another_source
+    to_users: # Brukere som får denne rollen. Bør det defineres her eller på brukeren?
+      - srv_snowbird_test
+  - role: snowbird_test_transformer
+    warehouses:
+      - snowbird_test_transformer
+    write_on_schemas:
+      - snowbird_test.staging
+      - snowbird_test.intermidiate
+      - snowbird_test.mart
+      - snowbird_test__preprod.staging
+      - snowbird_test__preprod.intermidiate
+      - snowbird_test__preprod.mart
+      - snowbird_test_raw.snapshots
+      - snowbird_test_raw__preprod.snapshots
+    read_on_schemas:
+      - snowbird_test_raw.one_source
+      - snowbird_test_raw.another_source
+      - snowbird_test_raw__preprod.one_source
+      - snowbird_test_raw__preprod.another_source
+    to_users:
+      - srv_snowbird_test
+  - role: snowbird_test_reporter
+    warehouses:
+      - snowbird_test_reporter
+    read_on_schemas:
+      - snowbird_test.mart
+    to_roles:
+      - snowbird_test_to_role # Roller som får denne rollen. Bør det defineres her eller på rollen?
