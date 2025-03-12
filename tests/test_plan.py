@@ -34,13 +34,31 @@ def test_create_database():
 def test_create_database_with_transient():
     config = {
         "databases": [
-            {"name": "foo", "transient": "true", "schemas": [{"name": "bar"}]},
+            {"name": "foo", "transient": True, "schemas": [{"name": "bar"}]},
         ]
     }
     expected = [
         "use role sysadmin",
         "create transient database if not exists foo",
         "create transient schema if not exists foo.bar",
+    ]
+    result = _trim_result(execution_plan(config))
+    print(result)
+    assert result == expected
+
+
+def test_create_database_with_transient_to_false():
+    config = {
+        "databases": [
+            {"name": "foo", "transient": False, "schemas": [{"name": "bar"}]},
+        ]
+    }
+    expected = [
+        "use role sysadmin",
+        "create database if not exists foo",
+        "alter database foo set data_retention_time_in_days = 7",
+        "create schema if not exists foo.bar",
+        "alter schema foo.bar set data_retention_time_in_days = 7",
     ]
     result = _trim_result(execution_plan(config))
     print(result)
@@ -74,7 +92,7 @@ def test_create_schema_with_transient():
         "databases": [
             {
                 "name": "foo",
-                "schemas": [{"name": "bar", "transient": "true"}],
+                "schemas": [{"name": "bar", "transient": True}],
             },
         ]
     }

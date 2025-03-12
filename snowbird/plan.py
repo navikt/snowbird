@@ -74,7 +74,7 @@ def _create_databases_execution_plan(databases: list[dict]) -> list[str]:
     execution_plan.append(use_sysadmin)
     for database in databases:
         db_name = database["name"]
-        db_transient = True if database.get("transient") == "true" else False
+        db_transient = database.get("transient", False)
         schemas = database["schemas"]
         db_data_retention_time_in_days = database.get("data_retention_time_in_days", 7)
 
@@ -91,11 +91,7 @@ def _create_databases_execution_plan(databases: list[dict]) -> list[str]:
 
         for schema in schemas:
             schema_name = schema["name"]
-            schema_transient = db_transient
-            if schema.get("transient") == "true":
-                schema_transient = True
-            if schema.get("transient") == "false":
-                schema_transient = False
+            schema_transient = schema.get("transient", db_transient)
             schema_data_retention_time_in_days = schema.get(
                 "data_retention_time_in_days", db_data_retention_time_in_days
             )

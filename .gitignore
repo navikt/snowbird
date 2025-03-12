@@ -9,3 +9,4 @@ build
 snowbird.egg-info
 
 test.py
+state.json
