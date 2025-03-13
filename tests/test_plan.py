@@ -1,4 +1,6 @@
-from snowbird.plan import execution_plan
+import pytest
+
+from snowbird.plan import UnmodifiableStateError, execution_plan
 
 
 # TODO: Ikke lenger nødvendig, og kan fjernes i tester
@@ -80,7 +82,7 @@ def test_create_database_with_data_retention_time_in_days():
     assert result == expected
 
 
-def test_create_database_with_same_state():
+def test_do_nothing_when_database_config_equals_state():
     config = {
         "databases": [
             {"name": "foo", "schemas": [{"name": "bar"}]},
@@ -109,7 +111,7 @@ def test_create_database_with_same_state():
     assert result == expected
 
 
-def test_create_database_with_different_retention_state():
+def test_modifying_data_retention_time_in_days_on_database():
     config = {
         "databases": [
             {
@@ -144,6 +146,37 @@ def test_create_database_with_different_retention_state():
     result = _trim_result(execution_plan(config=config, state=state))
     print(result)
     assert result == expected
+
+
+def test_raise_exception_when_modifying_transient_state_of_database():
+    config = {
+        "databases": [
+            {
+                "name": "foo",
+                "transient": False,
+                "schemas": [{"name": "bar"}],
+            },
+        ],
+    }
+    state = {
+        "databases": [
+            {
+                "name": "FOO",
+                "options": "TRANSIENT",
+                "retention_time": 7,
+            },
+        ],
+        "schemas": [
+            {
+                "name": "BAR",
+                "database_name": "FOO",
+                "options": "TRANSIENT",
+                "retention_time": 7,
+            },
+        ],
+    }
+    with pytest.raises(UnmodifiableStateError) as e:
+        _trim_result(execution_plan(config=config, state=state))
 
 
 def test_create_schema_with_transient():
@@ -261,6 +294,49 @@ def test_create_multiple_warehouses():
     assert result == expected
 
 
+def test_do_nothing_when_warehouse_config_equals_state():
+    config = {
+        "warehouses": [
+            {"name": "foo"},
+        ]
+    }
+    state = {
+        "warehouses": [
+            {
+                "name": "FOO",
+                "size": "XSMALL",
+            }
+        ]
+    }
+    expected = []
+    result = _trim_result(execution_plan(config=config, state=state))
+    print(result)
+    assert result == expected
+
+
+def test_modifying_warehouse_size():
+    config = {
+        "warehouses": [
+            {"name": "foo", "size": "large"},
+        ]
+    }
+    state = {
+        "warehouses": [
+            {
+                "name": "FOO",
+                "size": "XSMALL",
+            }
+        ]
+    }
+    expected = [
+        "use role sysadmin",
+        "alter warehouse foo set warehouse_size = large",
+    ]
+    result = _trim_result(execution_plan(config=config, state=state))
+    print(result)
+    assert result == expected
+
+
 def test_create_user():
     config = {
         "users": [
@@ -293,6 +369,49 @@ def test_create_multiple_users():
     assert result == expected
 
 
+def test_do_nothing_when_user_config_equals_state():
+    config = {
+        "users": [
+            {"name": "foo", "type": "role"},
+        ]
+    }
+    state = {
+        "users": [
+            {
+                "name": "FOO",
+                "type": "ROLE",
+            }
+        ]
+    }
+    expected = []
+    result = _trim_result(execution_plan(config=config, state=state))
+    print(result)
+    assert result == expected
+
+
+def test_modifying_user_type():
+    config = {
+        "users": [
+            {"name": "foo", "type": "bar"},
+        ]
+    }
+    state = {
+        "users": [
+            {
+                "name": "FOO",
+                "type": "ROLE",
+            }
+        ]
+    }
+    expected = [
+        "use role useradmin",
+        "alter user foo set type = bar",
+    ]
+    result = _trim_result(execution_plan(config=config, state=state))
+    print(result)
+    assert result == expected
+
+
 def test_create_role():
     config = {
         "roles": [
@@ -306,6 +425,25 @@ def test_create_role():
     result = _trim_result(execution_plan(config))
     print(result)
     assert result == expected
+    assert result == expected
+
+
+def test_do_nothing_when_role_config_equals_state():
+    config = {
+        "roles": [
+            {"name": "foo"},
+        ]
+    }
+    state = {
+        "roles": [
+            {
+                "name": "FOO",
+            }
+        ]
+    }
+    expected = []
+    result = _trim_result(execution_plan(config=config, state=state))
+    print(result)
     assert result == expected
 
 
