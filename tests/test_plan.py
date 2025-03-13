@@ -505,6 +505,9 @@ def test_grant_role_write_on_schema():
         "grant usage on schema bar.baz to role foo",
         "grant create table on schema bar.baz to role foo",
         "grant create view on schema bar.baz to role foo",
+        "grant create dynamic table on schema bar.baz to role foo",
+        "grant create task on schema bar.baz to role foo",
+        "grant create alert on schema bar.baz to role foo",
     ]
     result = execution_plan(config)
     print(result)
@@ -519,10 +522,16 @@ def test_grant_role_write_on_multiple_schemas():
         "grant usage on schema bar.baz to role foo",
         "grant create table on schema bar.baz to role foo",
         "grant create view on schema bar.baz to role foo",
+        "grant create dynamic table on schema bar.baz to role foo",
+        "grant create task on schema bar.baz to role foo",
+        "grant create alert on schema bar.baz to role foo",
         "grant usage on database bar to role foo",
         "grant usage on schema bar.qux to role foo",
         "grant create table on schema bar.qux to role foo",
         "grant create view on schema bar.qux to role foo",
+        "grant create dynamic table on schema bar.qux to role foo",
+        "grant create task on schema bar.qux to role foo",
+        "grant create alert on schema bar.qux to role foo",
     ]
     result = execution_plan(config)
     print(result)
