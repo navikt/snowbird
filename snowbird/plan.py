@@ -59,7 +59,8 @@ grant_role_to_role = """
     grant role {{ role }} to role {{ to_role }}
 """
 
-DEFAULT_RETENTION_TIME = 7
+DEFAULT_RETENTION_TIME = "7"
+DEFAULT_TRANSIENT_RETENTION_TIME = "1"
 DEFAULT_TRANSIENT = False
 
 jinja_env = jinja2.Environment()
@@ -81,10 +82,13 @@ def _create_databases_execution_plan(databases: list[dict], state: dict) -> list
     for database in databases:
         db_name = database["name"]
         db_transient = database.get("transient", DEFAULT_TRANSIENT)
-        db_data_retention_time_in_days = database.get(
-            "data_retention_time_in_days", DEFAULT_RETENTION_TIME
+        db_data_retention_time_in_days = str(
+            database.get("data_retention_time_in_days", DEFAULT_RETENTION_TIME)
         )
         db_state = state.get(db_name)
+
+        if db_transient:
+            db_data_retention_time_in_days = DEFAULT_TRANSIENT_RETENTION_TIME
 
         if db_state is None:
             create_database_statement = jinja_env.from_string(create_database).render(
@@ -122,18 +126,24 @@ def _create_schema_execution_plan(databases: list[dict], state: dict) -> list[st
     for database in databases:
         db_name = database["name"]
         db_transient = database.get("transient", DEFAULT_TRANSIENT)
-        db_data_retention_time_in_days = database.get(
-            "data_retention_time_in_days", DEFAULT_RETENTION_TIME
+        db_data_retention_time_in_days = str(
+            database.get("data_retention_time_in_days", DEFAULT_RETENTION_TIME)
         )
         schemas = database["schemas"]
         for schema in schemas:
             schema_name = schema["name"]
             full_schema_name = f"{db_name.lower()}.{schema_name.lower()}"
             schema_transient = schema.get("transient", db_transient)
-            schema_data_retention_time_in_days = schema.get(
-                "data_retention_time_in_days", db_data_retention_time_in_days
+            schema_data_retention_time_in_days = str(
+                schema.get(
+                    "data_retention_time_in_days", db_data_retention_time_in_days
+                )
             )
             schema_state = state.get(full_schema_name)
+
+            if schema_transient:
+                schema_data_retention_time_in_days = DEFAULT_TRANSIENT_RETENTION_TIME
+
             if schema_state is None:
                 create_schema_statement = jinja_env.from_string(create_schema).render(
                     database=db_name, schema=schema_name, transient=schema_transient

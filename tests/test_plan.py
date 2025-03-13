@@ -85,7 +85,11 @@ def test_create_database_with_data_retention_time_in_days():
 def test_do_nothing_when_database_config_equals_state():
     config = {
         "databases": [
-            {"name": "foo", "schemas": [{"name": "bar"}]},
+            {
+                "name": "foo",
+                "schemas": [{"name": "bar"}],
+                "data_retention_time_in_days": 7,
+            },
         ],
     }
     state = {
@@ -93,7 +97,7 @@ def test_do_nothing_when_database_config_equals_state():
             {
                 "name": "FOO",
                 "options": "",
-                "retention_time": 7,
+                "retention_time": "7",
             },
         ],
         "schemas": [
@@ -101,12 +105,41 @@ def test_do_nothing_when_database_config_equals_state():
                 "name": "BAR",
                 "database_name": "FOO",
                 "options": "",
-                "retention_time": 7,
+                "retention_time": "7",
             },
         ],
     }
     expected = []
     result = _trim_result(execution_plan(config=config, state=state))
+    print(result)
+    assert result == expected
+
+
+def test_do_nothing_when_database_transient_config_equals_state():
+    config = {
+        "databases": [
+            {"name": "foo", "transient": True, "schemas": [{"name": "bar"}]},
+        ],
+    }
+    state = {
+        "databases": [
+            {
+                "name": "FOO",
+                "options": "TRANSIENT",
+                "retention_time": "1",
+            },
+        ],
+        "schemas": [
+            {
+                "name": "BAR",
+                "database_name": "FOO",
+                "options": "TRANSIENT",
+                "retention_time": "1",
+            },
+        ],
+    }
+    expected = []
+    result = execution_plan(config=config, state=state)
     print(result)
     assert result == expected
 
@@ -126,7 +159,7 @@ def test_modifying_data_retention_time_in_days_on_database():
             {
                 "name": "FOO",
                 "options": "",
-                "retention_time": 7,
+                "retention_time": "7",
             },
         ],
         "schemas": [
@@ -134,7 +167,7 @@ def test_modifying_data_retention_time_in_days_on_database():
                 "name": "BAR",
                 "database_name": "FOO",
                 "options": "",
-                "retention_time": 7,
+                "retention_time": "7",
             },
         ],
     }
@@ -163,7 +196,7 @@ def test_raise_exception_when_modifying_transient_state_of_database():
             {
                 "name": "FOO",
                 "options": "TRANSIENT",
-                "retention_time": 7,
+                "retention_time": "1",
             },
         ],
         "schemas": [
@@ -171,7 +204,7 @@ def test_raise_exception_when_modifying_transient_state_of_database():
                 "name": "BAR",
                 "database_name": "FOO",
                 "options": "TRANSIENT",
-                "retention_time": 7,
+                "retention_time": "1",
             },
         ],
     }
