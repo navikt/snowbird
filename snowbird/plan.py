@@ -180,24 +180,31 @@ def _create_schema_execution_plan(databases: list[dict], state: dict) -> list[st
     return execution_plan
 
 
-def _create_warehouses_execution_plan(warehouses: list[dict]) -> list[str]:
+def _create_warehouses_execution_plan(warehouses: list[dict], state: dict) -> list[str]:
     if len(warehouses) == 0:
         return []
     execution_plan = []
     for warehouse in warehouses:
         warehouse_name = warehouse["name"]
         warehouse_size = warehouse.get("size", "xsmall")
+        warehouse_state = state.get(warehouse_name)
 
-        create_warehouse_statement = jinja_env.from_string(create_warehouse).render(
-            warehouse=warehouse_name, size=warehouse_size
-        )
-        execution_plan.append(create_warehouse_statement)
+        if warehouse_state is None:
+            create_warehouse_statement = jinja_env.from_string(create_warehouse).render(
+                warehouse=warehouse_name, size=warehouse_size
+            )
+            execution_plan.append(create_warehouse_statement)
 
-        alter_warehouse_statement = jinja_env.from_string(alter_warehouse).render(
-            warehouse=warehouse_name, size=warehouse_size
-        )
-        execution_plan.append(alter_warehouse_statement)
-
+            alter_warehouse_statement = jinja_env.from_string(alter_warehouse).render(
+                warehouse=warehouse_name, size=warehouse_size
+            )
+            execution_plan.append(alter_warehouse_statement)
+            continue
+        if warehouse_size != warehouse_state["size"]:
+            alter_warehouse_statement = jinja_env.from_string(alter_warehouse).render(
+                warehouse=warehouse_name, size=warehouse_size
+            )
+            execution_plan.append(alter_warehouse_statement)
     return execution_plan
 
 
@@ -360,6 +367,22 @@ def _schema_state(databases: list[dict], state: dict) -> dict:
     return existing_state
 
 
+def _warehouse_state(warehouses: list[dict], state: dict) -> dict:
+    if len(warehouses) == 0:
+        return {}
+    if state.get("warehouses") is None:
+        return {}
+    existing_state = {}
+    for warehouse in warehouses:
+        warehouse_name = warehouse["name"].lower()
+        for warehouse_state in state["warehouses"]:
+            if warehouse_name == warehouse_state["name"].lower():
+                existing_state[warehouse_name] = {
+                    "size": warehouse_state["size"].lower(),
+                }
+    return existing_state
+
+
 def execution_plan(config: dict, state={}) -> list[str]:
     databases = config.get("databases", [])
     warehouses = config.get("warehouses", [])
@@ -369,13 +392,16 @@ def execution_plan(config: dict, state={}) -> list[str]:
 
     databases_state = _database_state(databases, state)
     schema_state = _schema_state(databases, state)
+    warehouses_state = _warehouse_state(warehouses, state)
 
     plan = []
     plan.extend(
         _create_databases_execution_plan(databases=databases, state=databases_state)
     )
     plan.extend(_create_schema_execution_plan(databases=databases, state=schema_state))
-    plan.extend(_create_warehouses_execution_plan(warehouses))
+    plan.extend(
+        _create_warehouses_execution_plan(warehouses=warehouses, state=warehouses_state)
+    )
     if len(plan) > 0:
         plan.insert(0, use_sysadmin)
     plan_len = len(plan)
