@@ -195,7 +195,6 @@ def _create_users_execution_plan(users: list[dict]) -> list[str]:
     if len(users) == 0:
         return []
     execution_plan = []
-    execution_plan.append(use_useradmin)
     for user in users:
         user_name = user["name"]
         user_type = user["type"]
@@ -211,7 +210,6 @@ def _create_roles_execution_plan(roles: list[dict]) -> list[str]:
     if len(roles) == 0:
         return []
     exeution_plan = []
-    exeution_plan.append(use_useradmin)
     for role in roles:
         role_name = role["name"]
 
@@ -226,7 +224,6 @@ def _grant_role_execution_plan(grants: list[dict]) -> list[str]:
     if len(grants) == 0:
         return []
     execution_plan = []
-    execution_plan.append(use_useradmin)
     for grant in grants:
         role = grant["role"]
         warehouses = grant.get("warehouses", [])
@@ -371,9 +368,12 @@ def execution_plan(config: dict, state={}) -> list[str]:
     plan.extend(_create_warehouses_execution_plan(warehouses))
     if len(plan) > 0:
         plan.insert(0, use_sysadmin)
+    plan_len = len(plan)
     plan.extend(_create_users_execution_plan(users))
     plan.extend(_create_roles_execution_plan(roles))
     plan.extend(_grant_role_execution_plan(grants))
+    if len(plan) > plan_len:
+        plan.insert(plan_len, use_useradmin)
     plan = _trim_sql_statements(plan)
 
     return plan

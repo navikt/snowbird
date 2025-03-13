@@ -578,3 +578,22 @@ def test_grant_role_to_multiple_users():
     result = _trim_result(execution_plan(config))
     print(result)
     assert result == expected
+
+
+def test_switching_executer_role():
+    config = {
+        "databases": [{"name": "foo", "schemas": [{"name": "bar"}]}],
+        "roles": [{"name": "baz"}],
+    }
+    expected = [
+        "use role sysadmin",
+        "create database if not exists foo",
+        "alter database foo set data_retention_time_in_days = 7",
+        "create schema if not exists foo.bar",
+        "alter schema foo.bar set data_retention_time_in_days = 7",
+        "use role useradmin",
+        "create role if not exists baz",
+    ]
+    result = execution_plan(config)
+    print(result)
+    assert result == expected
