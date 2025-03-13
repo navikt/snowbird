@@ -7,6 +7,26 @@ from snowbird.plan import execution_plan, load_config
 from snowbird.state import current_state
 from snowbird.utils import _snow_config
 
+DEFAULT_CONFIG = "snowflake.yml"
+
+
+def _setup_execution_plan(config, silent, state, stateless):
+    if state and stateless == True:
+        click.echo("Cannot use --state and --stateless together")
+        return
+
+    path = config if config else DEFAULT_CONFIG
+    config = load_config(path=path)
+    state = None
+    if state:
+        with open(state, "r") as f:
+            state = json.load(f)
+    if stateless == False:
+        if silent == False:
+            click.echo("Fetching state")
+        state = current_state()
+    return execution_plan(config=config, state=state)
+
 
 @click.group(name="cli")
 @click.version_option()
@@ -21,14 +41,18 @@ def cli():
     is_flag=True,
     help="Silent mode. Can be used if you want to write the output to a file",
 )
-def plan(config, silent):
+@click.option(
+    "--state",
+    help="Path snowflake state file to compare against",
+)
+@click.option("--stateless", is_flag=True, help="Run without state comparison")
+def plan(config, silent, state, stateless):
+    execution_plan = _setup_execution_plan(
+        config=config, silent=silent, state=state, stateless=stateless
+    )
     if silent == False:
-        click.echo("Planning")
         click.echo("Execution plan")
-    path = config if config else "snowflake.yml"
-    config = load_config(path=path)
-    execution_statements = execution_plan(config=config)
-    for statement in execution_statements:
+    for statement in execution_plan:
         click.echo(f"{statement};")
 
 
@@ -45,23 +69,13 @@ def plan(config, silent):
 )
 @click.option("--stateless", is_flag=True, help="Run without state comparison")
 def apply(config, silent, state, stateless):
-    if state and stateless == True:
-        click.echo("Cannot use --state and --stateless together")
-        return
+    execution_plan = _setup_execution_plan(
+        config=config, silent=silent, state=state, stateless=stateless
+    )
     if silent == False:
-        click.echo("Applying")
-        click.echo("Applying changes to Snowflake")
-    path = config if config else "snowflake.yml"
-    config = load_config(path=path)
-    state = None
-    if state:
-        with open(state, "r") as f:
-            state = json.load(f)
-    if stateless == False:
-        state = current_state()
-    execution_statements = execution_plan(config=config, state=state)
+        click.echo("Applying execution plan")
     with snowflake.connector.connect(**_snow_config()).cursor() as cursor:
-        for statement in execution_statements:
+        for statement in execution_plan:
             if silent == False:
                 click.echo("Executing statement")
                 click.echo(f"{statement};")
