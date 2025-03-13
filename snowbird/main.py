@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import click
 import snowflake.connector
@@ -21,10 +22,10 @@ def _setup_execution_plan(config, silent, state, stateless):
         click.echo("Fetching state")
     if stateless:
         return execution_plan(config=config)
-    if state:
-        with open(state, "r") as f:
-            state = json.load(f)
-    return execution_plan(config=config, state=state)
+    snowflake_state = (
+        Path(state).read_text(encoding="utf-8") if state else current_state()
+    )
+    return execution_plan(config=config, state=snowflake_state)
 
 
 @click.group(name="cli")
