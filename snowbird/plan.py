@@ -62,46 +62,99 @@ grant_role_to_role = """
 jinja_env = jinja2.Environment()
 
 
+class UnmodifiableStateError(Exception):
+    pass
+
+
 def load_config(path: str) -> dict:
     with open(path) as file:
         return yaml.safe_load(file)
 
 
-def _create_databases_execution_plan(databases: list[dict]) -> list[str]:
+def _create_databases_execution_plan(databases: list[dict], state: dict) -> list[str]:
     if len(databases) == 0:
         return []
     execution_plan = []
-    execution_plan.append(use_sysadmin)
     for database in databases:
         db_name = database["name"]
         db_transient = database.get("transient", False)
         schemas = database["schemas"]
         db_data_retention_time_in_days = database.get("data_retention_time_in_days", 7)
+        db_state = state.get(db_name)
 
-        create_database_statement = jinja_env.from_string(create_database).render(
-            database=db_name, transient=db_transient
-        )
-        execution_plan.append(create_database_statement)
+        if db_state is None:
+            create_database_statement = jinja_env.from_string(create_database).render(
+                database=db_name, transient=db_transient
+            )
+            execution_plan.append(create_database_statement)
 
-        if db_transient == False:
+            if db_transient == False:
+                alter_database_data_retention_statement = jinja_env.from_string(
+                    alter_database_data_retention
+                ).render(
+                    database=db_name, retention_days=db_data_retention_time_in_days
+                )
+                execution_plan.append(alter_database_data_retention_statement)
+
+        if db_state and db_transient != db_state["transient"]:
+            raise UnmodifiableStateError(
+                f"Cannot change transient state of database {db_name}. It is currently {db_state['transient']}. Please modify the database manually."
+            )
+
+        if (
+            db_state
+            and db_data_retention_time_in_days
+            != db_state["data_retention_time_in_days"]
+        ):
             alter_database_data_retention_statement = jinja_env.from_string(
                 alter_database_data_retention
             ).render(database=db_name, retention_days=db_data_retention_time_in_days)
             execution_plan.append(alter_database_data_retention_statement)
 
+    return execution_plan
+
+
+def _create_schema_execution_plan(databases: list[dict], state: dict) -> list[str]:
+    if len(databases) == 0:
+        return []
+    execution_plan = []
+    for database in databases:
+        db_name = database["name"]
+        db_transient = database.get("transient", False)
+        db_data_retention_time_in_days = database.get("data_retention_time_in_days", 7)
+        schemas = database["schemas"]
         for schema in schemas:
             schema_name = schema["name"]
+            full_schema_name = f"{db_name.lower()}.{schema_name.lower()}"
             schema_transient = schema.get("transient", db_transient)
             schema_data_retention_time_in_days = schema.get(
                 "data_retention_time_in_days", db_data_retention_time_in_days
             )
+            schema_state = state.get(full_schema_name)
+            if schema_state is None:
+                create_schema_statement = jinja_env.from_string(create_schema).render(
+                    database=db_name, schema=schema_name, transient=schema_transient
+                )
+                execution_plan.append(create_schema_statement)
 
-            create_schema_statement = jinja_env.from_string(create_schema).render(
-                database=db_name, schema=schema_name, transient=schema_transient
-            )
-            execution_plan.append(create_schema_statement)
-
-            if schema_transient == False:
+                if schema_transient == False:
+                    alter_schema_data_retention_statement = jinja_env.from_string(
+                        alter_schema_data_retention
+                    ).render(
+                        database=db_name,
+                        schema=schema_name,
+                        retention_days=schema_data_retention_time_in_days,
+                    )
+                    execution_plan.append(alter_schema_data_retention_statement)
+            if schema_state and schema_transient != schema_state["transient"]:
+                raise UnmodifiableStateError(
+                    f"Cannot change transient state of schema {full_schema_name}. It is currently {schema_state['transient']}. Please modify the schema manually."
+                )
+            if (
+                schema_state
+                and schema_data_retention_time_in_days
+                != schema_state["data_retention_time_in_days"]
+            ):
                 alter_schema_data_retention_statement = jinja_env.from_string(
                     alter_schema_data_retention
                 ).render(
@@ -110,7 +163,6 @@ def _create_databases_execution_plan(databases: list[dict]) -> list[str]:
                     retention_days=schema_data_retention_time_in_days,
                 )
                 execution_plan.append(alter_schema_data_retention_statement)
-
     return execution_plan
 
 
@@ -118,7 +170,6 @@ def _create_warehouses_execution_plan(warehouses: list[dict]) -> list[str]:
     if len(warehouses) == 0:
         return []
     execution_plan = []
-    execution_plan.append(use_sysadmin)
     for warehouse in warehouses:
         warehouse_name = warehouse["name"]
         warehouse_size = warehouse.get("size", "xsmall")
@@ -253,16 +304,69 @@ def _trim_sql_statements(execution_plan: list[str]) -> list[str]:
     return result_trimmed
 
 
-def execution_plan(config: dict) -> list[str]:
+def _database_state(databases: list[dict], state: dict) -> dict:
+    if len(databases) == 0:
+        return {}
+    if state.get("databases") is None:
+        return {}
+    database_names = [database["name"].lower() for database in databases]
+    return {
+        database["name"].lower(): {
+            "data_retention_time_in_days": database["retention_time"],
+            "transient": True if "transient" in database["options"].lower() else False,
+        }
+        for database in state["databases"]
+        if database["name"].lower() in database_names
+    }
+
+
+def _schema_state(databases: list[dict], state: dict) -> dict:
+    if len(databases) == 0:
+        return {}
+    if state.get("schemas") is None:
+        return {}
+    existing_state = {}
+    for database in databases:
+        db_name = database["name"]
+        schemas = database["schemas"]
+        for schema_state in state["schemas"]:
+            schema_state_name = schema_state["name"].lower()
+            schema_state_db_name = schema_state["database_name"].lower()
+            if schema_state_db_name != db_name:
+                continue
+            for schema in schemas:
+                schema_name = schema["name"].lower()
+                if schema_name == schema_state_name:
+                    existing_state[f"{schema_state_db_name}.{schema_name}"] = {
+                        "data_retention_time_in_days": schema_state["retention_time"],
+                        "transient": (
+                            True
+                            if "transient" in schema_state["options"].lower()
+                            else False
+                        ),
+                        "schema": schema_state,
+                    }
+    return existing_state
+
+
+def execution_plan(config: dict, state={}) -> list[str]:
     databases = config.get("databases", [])
     warehouses = config.get("warehouses", [])
     users = config.get("users", [])
     roles = config.get("roles", [])
     grants = config.get("grants", [])
 
+    databases_state = _database_state(databases, state)
+    schema_state = _schema_state(databases, state)
+
     plan = []
-    plan.extend(_create_databases_execution_plan(databases))
+    plan.extend(
+        _create_databases_execution_plan(databases=databases, state=databases_state)
+    )
+    plan.extend(_create_schema_execution_plan(databases=databases, state=schema_state))
     plan.extend(_create_warehouses_execution_plan(warehouses))
+    if len(plan) > 0:
+        plan.insert(0, use_sysadmin)
     plan.extend(_create_users_execution_plan(users))
     plan.extend(_create_roles_execution_plan(roles))
     plan.extend(_grant_role_execution_plan(grants))

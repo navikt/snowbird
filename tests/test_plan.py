@@ -1,16 +1,9 @@
 from snowbird.plan import execution_plan
 
 
-# TODO: Bør kanskje trimmes av execution_plan
+# TODO: Ikke lenger nødvendig, og kan fjernes i tester
 def _trim_result(result):
-    result_trimmed = []
-    for line in result:
-        line_trimmed_list = []
-        for l in line.split("\n"):
-            line_trimmed_list.append(l.strip()) if l.strip() else None
-        line_trimmed = " ".join(line_trimmed_list)
-        result_trimmed.append(line_trimmed)
-    return result_trimmed
+    return result
 
 
 def test_create_database():
@@ -83,6 +76,72 @@ def test_create_database_with_data_retention_time_in_days():
         "alter schema foo.bar set data_retention_time_in_days = 30",
     ]
     result = _trim_result(execution_plan(config))
+    print(result)
+    assert result == expected
+
+
+def test_create_database_with_same_state():
+    config = {
+        "databases": [
+            {"name": "foo", "schemas": [{"name": "bar"}]},
+        ],
+    }
+    state = {
+        "databases": [
+            {
+                "name": "FOO",
+                "options": "",
+                "retention_time": 7,
+            },
+        ],
+        "schemas": [
+            {
+                "name": "BAR",
+                "database_name": "FOO",
+                "options": "",
+                "retention_time": 7,
+            },
+        ],
+    }
+    expected = []
+    result = _trim_result(execution_plan(config=config, state=state))
+    print(result)
+    assert result == expected
+
+
+def test_create_database_with_different_retention_state():
+    config = {
+        "databases": [
+            {
+                "name": "foo",
+                "data_retention_time_in_days": 30,
+                "schemas": [{"name": "bar"}],
+            },
+        ],
+    }
+    state = {
+        "databases": [
+            {
+                "name": "FOO",
+                "options": "",
+                "retention_time": 7,
+            },
+        ],
+        "schemas": [
+            {
+                "name": "BAR",
+                "database_name": "FOO",
+                "options": "",
+                "retention_time": 7,
+            },
+        ],
+    }
+    expected = [
+        "use role sysadmin",
+        "alter database foo set data_retention_time_in_days = 30",
+        "alter schema foo.bar set data_retention_time_in_days = 30",
+    ]
+    result = _trim_result(execution_plan(config=config, state=state))
     print(result)
     assert result == expected
 
@@ -380,5 +439,4 @@ def test_grant_role_to_multiple_users():
     ]
     result = _trim_result(execution_plan(config))
     print(result)
-    assert result == expected
     assert result == expected
