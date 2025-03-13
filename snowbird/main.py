@@ -17,14 +17,13 @@ def _setup_execution_plan(config, silent, state, stateless):
 
     path = config if config else DEFAULT_CONFIG
     config = load_config(path=path)
-    state = None
+    if silent == False and not stateless:
+        click.echo("Fetching state")
+    if stateless:
+        return execution_plan(config=config)
     if state:
         with open(state, "r") as f:
             state = json.load(f)
-    if stateless == False:
-        if silent == False:
-            click.echo("Fetching state")
-        state = current_state()
     return execution_plan(config=config, state=state)
 
 
