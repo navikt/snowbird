@@ -3,11 +3,6 @@ import pytest
 from snowbird.plan import UnmodifiableStateError, execution_plan
 
 
-# TODO: Ikke lenger nødvendig, og kan fjernes i tester
-def _trim_result(result):
-    return result
-
-
 def test_create_database():
     config = {
         "databases": [
@@ -21,7 +16,7 @@ def test_create_database():
         "create schema if not exists foo.bar",
         "alter schema foo.bar set data_retention_time_in_days = 7",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -37,7 +32,7 @@ def test_create_database_with_transient():
         "create transient database if not exists foo",
         "create transient schema if not exists foo.bar",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -55,7 +50,7 @@ def test_create_database_with_transient_to_false():
         "create schema if not exists foo.bar",
         "alter schema foo.bar set data_retention_time_in_days = 7",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -77,7 +72,7 @@ def test_create_database_with_data_retention_time_in_days():
         "create schema if not exists foo.bar",
         "alter schema foo.bar set data_retention_time_in_days = 30",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -110,7 +105,7 @@ def test_do_nothing_when_database_config_equals_state():
         ],
     }
     expected = []
-    result = _trim_result(execution_plan(config=config, state=state))
+    result = execution_plan(config=config, state=state)
     print(result)
     assert result == expected
 
@@ -176,7 +171,7 @@ def test_modifying_data_retention_time_in_days_on_database():
         "alter database foo set data_retention_time_in_days = 30",
         "alter schema foo.bar set data_retention_time_in_days = 30",
     ]
-    result = _trim_result(execution_plan(config=config, state=state))
+    result = execution_plan(config=config, state=state)
     print(result)
     assert result == expected
 
@@ -209,7 +204,7 @@ def test_raise_exception_when_modifying_transient_state_of_database():
         ],
     }
     with pytest.raises(UnmodifiableStateError) as e:
-        _trim_result(execution_plan(config=config, state=state))
+        execution_plan(config=config, state=state)
 
 
 def test_create_schema_with_transient():
@@ -227,7 +222,7 @@ def test_create_schema_with_transient():
         "alter database foo set data_retention_time_in_days = 7",
         "create transient schema if not exists foo.bar",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -248,7 +243,7 @@ def test_create_schema_with_data_retention_time_in_days():
         "create schema if not exists foo.bar",
         "alter schema foo.bar set data_retention_time_in_days = 30",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -271,7 +266,7 @@ def test_create_multiple_schemas():
         "create schema if not exists foo.baz",
         "alter schema foo.baz set data_retention_time_in_days = 7",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -287,7 +282,7 @@ def test_create_warehouse():
         "create warehouse if not exists foo with warehouse_size = xsmall auto_suspend = 30 initially_suspended = true",
         "alter warehouse foo set warehouse_size = xsmall",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -303,7 +298,7 @@ def test_create_warehouse_with_size():
         "create warehouse if not exists foo with warehouse_size = large auto_suspend = 30 initially_suspended = true",
         "alter warehouse foo set warehouse_size = large",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -322,7 +317,7 @@ def test_create_multiple_warehouses():
         "create warehouse if not exists bar with warehouse_size = xsmall auto_suspend = 30 initially_suspended = true",
         "alter warehouse bar set warehouse_size = xsmall",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -342,7 +337,7 @@ def test_do_nothing_when_warehouse_config_equals_state():
         ]
     }
     expected = []
-    result = _trim_result(execution_plan(config=config, state=state))
+    result = execution_plan(config=config, state=state)
     print(result)
     assert result == expected
 
@@ -365,7 +360,7 @@ def test_modifying_warehouse_size():
         "use role sysadmin",
         "alter warehouse foo set warehouse_size = large",
     ]
-    result = _trim_result(execution_plan(config=config, state=state))
+    result = execution_plan(config=config, state=state)
     print(result)
     assert result == expected
 
@@ -380,7 +375,7 @@ def test_create_user():
         "use role useradmin",
         "create user if not exists foo type = role",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -397,7 +392,7 @@ def test_create_multiple_users():
         "create user if not exists foo type = role",
         "create user if not exists bar type = another_role",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -417,7 +412,7 @@ def test_do_nothing_when_user_config_equals_state():
         ]
     }
     expected = []
-    result = _trim_result(execution_plan(config=config, state=state))
+    result = execution_plan(config=config, state=state)
     print(result)
     assert result == expected
 
@@ -440,7 +435,7 @@ def test_modifying_user_type():
         "use role useradmin",
         "alter user foo set type = bar",
     ]
-    result = _trim_result(execution_plan(config=config, state=state))
+    result = execution_plan(config=config, state=state)
     print(result)
     assert result == expected
 
@@ -455,9 +450,8 @@ def test_create_role():
         "use role useradmin",
         "create role if not exists foo",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
-    assert result == expected
     assert result == expected
 
 
@@ -475,7 +469,7 @@ def test_do_nothing_when_role_config_equals_state():
         ]
     }
     expected = []
-    result = _trim_result(execution_plan(config=config, state=state))
+    result = execution_plan(config=config, state=state)
     print(result)
     assert result == expected
 
@@ -486,7 +480,7 @@ def test_grant_role_warehouse():
         "use role useradmin",
         "grant usage on warehouse bar to role foo",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -498,7 +492,7 @@ def test_grant_role_multiple_warehouses():
         "grant usage on warehouse bar to role foo",
         "grant usage on warehouse baz to role foo",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -512,7 +506,7 @@ def test_grant_role_write_on_schema():
         "grant create table on schema bar.baz to role foo",
         "grant create view on schema bar.baz to role foo",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -530,7 +524,7 @@ def test_grant_role_write_on_multiple_schemas():
         "grant create table on schema bar.qux to role foo",
         "grant create view on schema bar.qux to role foo",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -544,7 +538,7 @@ def test_grant_role_read_on_schema():
         "grant select on all tables in schema bar.baz to role foo",
         "grant select on future tables in schema bar.baz to role foo",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -562,7 +556,7 @@ def test_grant_role_read_on_multiple_schemas():
         "grant select on all tables in schema bar.qux to role foo",
         "grant select on future tables in schema bar.qux to role foo",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -573,7 +567,7 @@ def test_grant_role_to_role():
         "use role useradmin",
         "grant role foo to role bar",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -585,7 +579,7 @@ def test_grant_role_to_multiple_roles():
         "grant role foo to role bar",
         "grant role foo to role baz",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -596,7 +590,7 @@ def test_grant_role_to_user():
         "use role useradmin",
         "grant role foo to user bar",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
@@ -608,7 +602,7 @@ def test_grant_role_to_multiple_users():
         "grant role foo to user bar",
         "grant role foo to user baz",
     ]
-    result = _trim_result(execution_plan(config))
+    result = execution_plan(config)
     print(result)
     assert result == expected
 
