@@ -59,6 +59,9 @@ grant_role_to_role = """
     grant role {{ role }} to role {{ to_role }}
 """
 
+DEFAULT_RETENTION_TIME = 7
+DEFAULT_TRANSIENT = False
+
 jinja_env = jinja2.Environment()
 
 
@@ -77,9 +80,10 @@ def _create_databases_execution_plan(databases: list[dict], state: dict) -> list
     execution_plan = []
     for database in databases:
         db_name = database["name"]
-        db_transient = database.get("transient", False)
-        schemas = database["schemas"]
-        db_data_retention_time_in_days = database.get("data_retention_time_in_days", 7)
+        db_transient = database.get("transient", DEFAULT_TRANSIENT)
+        db_data_retention_time_in_days = database.get(
+            "data_retention_time_in_days", DEFAULT_RETENTION_TIME
+        )
         db_state = state.get(db_name)
 
         if db_state is None:
@@ -95,17 +99,14 @@ def _create_databases_execution_plan(databases: list[dict], state: dict) -> list
                     database=db_name, retention_days=db_data_retention_time_in_days
                 )
                 execution_plan.append(alter_database_data_retention_statement)
+            continue
 
-        if db_state and db_transient != db_state["transient"]:
+        if db_transient != db_state["transient"]:
             raise UnmodifiableStateError(
                 f"Cannot change transient state of database {db_name}. It is currently {db_state['transient']}. Please modify the database manually."
             )
 
-        if (
-            db_state
-            and db_data_retention_time_in_days
-            != db_state["data_retention_time_in_days"]
-        ):
+        if db_data_retention_time_in_days != db_state["data_retention_time_in_days"]:
             alter_database_data_retention_statement = jinja_env.from_string(
                 alter_database_data_retention
             ).render(database=db_name, retention_days=db_data_retention_time_in_days)
@@ -120,8 +121,10 @@ def _create_schema_execution_plan(databases: list[dict], state: dict) -> list[st
     execution_plan = []
     for database in databases:
         db_name = database["name"]
-        db_transient = database.get("transient", False)
-        db_data_retention_time_in_days = database.get("data_retention_time_in_days", 7)
+        db_transient = database.get("transient", DEFAULT_TRANSIENT)
+        db_data_retention_time_in_days = database.get(
+            "data_retention_time_in_days", DEFAULT_RETENTION_TIME
+        )
         schemas = database["schemas"]
         for schema in schemas:
             schema_name = schema["name"]
@@ -146,13 +149,14 @@ def _create_schema_execution_plan(databases: list[dict], state: dict) -> list[st
                         retention_days=schema_data_retention_time_in_days,
                     )
                     execution_plan.append(alter_schema_data_retention_statement)
-            if schema_state and schema_transient != schema_state["transient"]:
+                continue
+
+            if schema_transient != schema_state["transient"]:
                 raise UnmodifiableStateError(
                     f"Cannot change transient state of schema {full_schema_name}. It is currently {schema_state['transient']}. Please modify the schema manually."
                 )
             if (
-                schema_state
-                and schema_data_retention_time_in_days
+                schema_data_retention_time_in_days
                 != schema_state["data_retention_time_in_days"]
             ):
                 alter_schema_data_retention_statement = jinja_env.from_string(
