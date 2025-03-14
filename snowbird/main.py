@@ -2,11 +2,10 @@ import json
 from pathlib import Path
 
 import click
-import snowflake.connector
 
 from snowbird.plan import execution_plan, load_config
 from snowbird.state import current_state
-from snowbird.utils import _snow_config
+from snowbird.utils import progressbar, snowflake_cursor, spinner
 
 DEFAULT_CONFIG = "snowflake.yml"
 
@@ -16,15 +15,17 @@ def _setup_execution_plan(config, silent, state, stateless):
         click.echo("Cannot use --state and --stateless together")
         return
 
-    path = config if config else DEFAULT_CONFIG
-    config = load_config(path=path)
-    if silent == False and not stateless:
-        click.echo("Fetching state")
+    config = load_config(path=config)
     if stateless:
         return execution_plan(config=config)
-    snowflake_state = (
-        Path(state).read_text(encoding="utf-8") if state else current_state()
-    )
+    if state:
+        snowflake_state = Path(state).read_text(encoding="utf-8")
+    else:
+        if silent == False:
+            with spinner("Fetching state"):
+                snowflake_state = current_state(config=config)
+        else:
+            snowflake_state = current_state(config=config)
     return execution_plan(config=config, state=snowflake_state)
 
 
@@ -35,7 +36,7 @@ def cli():
 
 
 @cli.command()
-@click.option("--config", help="Path to the configuration file")
+@click.option("--config", default=DEFAULT_CONFIG, help="Path to the configuration file")
 @click.option(
     "--silent",
     is_flag=True,
@@ -57,7 +58,7 @@ def plan(config, silent, state, stateless):
 
 
 @cli.command()
-@click.option("--config", help="Path to the configuration file")
+@click.option("--config", default=DEFAULT_CONFIG, help="Path to the configuration file")
 @click.option(
     "--silent",
     is_flag=True,
@@ -72,14 +73,13 @@ def apply(config, silent, state, stateless):
     execution_plan = _setup_execution_plan(
         config=config, silent=silent, state=state, stateless=stateless
     )
-    if silent == False:
-        click.echo("Applying execution plan")
-    with snowflake.connector.connect(**_snow_config()).cursor() as cursor:
-        for statement in execution_plan:
-            if silent == False:
-                click.echo("Executing statement")
-                click.echo(f"{statement};")
-            cursor.execute(statement)
+    with snowflake_cursor() as cursor:
+        if silent == False:
+            for statement in progressbar(execution_plan, title="Executing plan"):
+                cursor.execute(statement)
+        else:
+            for statement in execution_plan:
+                cursor.execute(statement)
 
 
 @cli.group(name="save")
@@ -91,10 +91,13 @@ def save():
 @click.option(
     "--file", default="state.json", help="Path to the file to write the state to"
 )
-def state(file):
-    click.echo("Fetching state")
+@click.option("--config", default=DEFAULT_CONFIG, help="Path to the configuration file")
+def state(file, config):
+    config = load_config(config)
+    with spinner("Fetching state"):
+        state = current_state(config)
     with open(file, "w") as f:
-        f.write(json.dumps(current_state(), indent=4, sort_keys=True, default=str))
+        f.write(json.dumps(state, indent=4, sort_keys=True, default=str))
 
 
 if __name__ == "__main__":

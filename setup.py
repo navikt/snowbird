@@ -20,7 +20,13 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Operating System :: OS Independent",
     ],
-    install_requires=["pyyaml", "click", "snowflake-connector-python", "jinja2"],
+    install_requires=[
+        "pyyaml",
+        "click",
+        "snowflake-connector-python",
+        "jinja2",
+        "alive-progress",
+    ],
     extras_require={
         "dev": [
             "pytest",
