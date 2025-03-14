@@ -374,6 +374,7 @@ def test_create_user():
     expected = [
         "use role useradmin",
         "create user if not exists foo type = role",
+        "alter user foo set set type = role",
     ]
     result = execution_plan(config)
     print(result)
@@ -390,7 +391,9 @@ def test_create_multiple_users():
     expected = [
         "use role useradmin",
         "create user if not exists foo type = role",
+        "alter user foo set set type = role",
         "create user if not exists bar type = another_role",
+        "alter user bar set set type = another_role",
     ]
     result = execution_plan(config)
     print(result)
