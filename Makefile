@@ -1,11 +1,7 @@
-ifeq ($(OS),Windows_NT)
-	BIN = Scripts
-else
-	BIN = bin
-endif
+SHELL = /bin/bash
+.DEFAULT_GOAL = install
 
-VENV = .venv
-PY =$(VENV)/$(BIN)/python -m
+PY = ./.venv/bin/python -m
 
 .PHONY: install ## install requirements in virtual env
 install:

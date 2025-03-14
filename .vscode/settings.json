@@ -12,5 +12,4 @@
         "--profile",
         "black"
     ],
-    "esbonio.sphinx.confDir": ""
 }

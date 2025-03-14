@@ -28,36 +28,4 @@ For å release en ny versjon må en gjøre følgende:
 
 ## Actions
 
-### Create resources and configure grants
-
-The default declaration file name is 'snowflake.yml' and the default location of the file is ./infrastructure
-
-In this case you can simply run the command: $ snowbird run.
-
-**Command**
-
-```shell
-snowbird run
-```
-
-### Cloning
-
-You can clone a database by running the commnad $ snowbird clone. The destination db will be replaced if it's already exists and refresh of dynamic tables will be suspended. Optionally give a role usage to the new database with --usage
-
-**Command**
-
-```shell
-snowbird clone <source_db> <destination_db>
-```
-
-**Options**
-
-```shell
---usage <role>
-```
-
-**Example**
-
-```shell
-snowbird clone my_db my_db_clone --usage supreme_leader
-```
+TODO...

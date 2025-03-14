@@ -7,3 +7,7 @@ dist/
 .venv
 build
 snowbird.egg-info
+
+test.py
+state.json
+plan.sql

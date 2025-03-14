@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="snowbird",
-    version="0.2.0",
+    version="0.3.0",
     description=("Snowbird helps configure Snowflake resources for dataproducts"),
     # package_dir={"": "inbound"},
     packages=find_packages(include=("snowbird/*,")),
@@ -21,12 +21,11 @@ setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        "sqlalchemy<2.0.0",  # sqlalchemy 2.0.0 is not compatible with permifrost 0.15.4. Issue: https://gitlab.com/gitlab-data/permifrost/-/issues/209
-        "snowflake-sqlalchemy",
-        "permifrost",
-        "pydantic",
         "pyyaml",
         "click",
+        "snowflake-connector-python",
+        "jinja2",
+        "alive-progress",
     ],
     extras_require={
         "dev": [
@@ -38,6 +37,6 @@ setup(
     python_requires=">=3.10",
     entry_points="""
         [console_scripts]
-        snowbird=snowbird.command:cli
+        snowbird=snowbird.main:cli
     """,
 )

@@ -1,44 +1,39 @@
-import logging
+# Snowflake-config
+import io
+import os
+import sys
 
-from permifrost import SpecLoadingError
-from permifrost.snowflake_connector import SnowflakeConnector
-from permifrost.snowflake_spec_loader import SnowflakeSpecLoader
-
-LOGGER = logging.getLogger()
-
-# adapted from permifrost cli
-def print_command(command):
-    if command.get("run_status"):
-        run_prefix = "[SUCCESS] "
-    elif command.get("run_status") is None:
-        run_prefix = "[SKIPPED] "
-    else:
-        run_prefix = "[ERROR] "
-
-    print(f"{run_prefix}{command['sql']};")
+import snowflake.connector
+from alive_progress import alive_bar, alive_it
+from snowflake.connector import DictCursor
 
 
-def load_specs(spec, conn: SnowflakeConnector = None):
-    try:
-        spec_loader = SnowflakeSpecLoader(spec_path=spec, conn=conn)
-        return spec_loader
-    except SpecLoadingError as exc:
-        for line in str(exc).splitlines():
-            LOGGER.error(f"Error loading spec. {line}")
+def _snow_config():
+    return {
+        "user": os.environ["DBT_USR"],
+        "authenticator": "externalbrowser",
+        "account": "wx23413.europe-west4.gcp",
+        "role": "securityadmin",
+        "warehouse": "dev__xs",
+    }
 
 
-def execute_statement(
-    conn: SnowflakeConnector, statement: str, alias: str = None
-) -> None:
-    result = None
-    try:
-        LOGGER.info(statement)
-        result = conn.run_query(statement)
-        status = True
-    except Exception as e:
-        status = False
-        LOGGER.error(f"Error executing {statement}. {e}")
-    finally:
-        command = {"run_status": status, "sql": alias or statement}
-        print_command(command)
-        return result
+def spinner(title: str):
+    return alive_bar(
+        title=title,
+        elapsed=False,
+        stats=False,
+        monitor=False,
+        refresh_secs=0.05,
+    )
+
+
+def progressbar(*args, **kwargs):
+    return alive_it(*args, **kwargs)
+
+
+def snowflake_cursor(config: dict = _snow_config()):
+    sys.stdout = io.StringIO()
+    cursor = snowflake.connector.connect(**config).cursor(DictCursor)
+    sys.stdout = sys.__stdout__
+    return cursor
