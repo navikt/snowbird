@@ -220,6 +220,10 @@ def _create_users_execution_plan(users: list[dict]) -> list[str]:
             user=user_name, type=user_type
         )
         execution_plan.append(create_user_statement)
+        alter_user_statement = jinja_env.from_string(alter_user).render(
+            user=user_name, type=user_type
+        )
+        execution_plan.append(alter_user_statement)
     return execution_plan
 
 
