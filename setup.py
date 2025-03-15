@@ -23,7 +23,7 @@ setup(
     install_requires=[
         "pyyaml",
         "click",
-        "snowflake-connector-python",
+        "snowflake-connector-python[secure-local-storage]",
         "jinja2",
         "alive-progress",
     ],
