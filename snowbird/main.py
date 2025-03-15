@@ -8,25 +8,26 @@ from snowbird.state import current_state
 from snowbird.utils import progressbar, snowflake_cursor, spinner
 
 DEFAULT_CONFIG = "snowflake.yml"
+DEFAULT_STATE = "state.json"
 
 
 def _setup_execution_plan(config, silent, state, stateless):
     if state and stateless == True:
         click.echo("Cannot use --state and --stateless together")
-        return
+        exit(1)
 
     config = load_config(path=config)
     if stateless:
         return execution_plan(config=config)
     if state:
         snowflake_state = Path(state).read_text(encoding="utf-8")
-    else:
-        if silent == False:
-            with spinner("Fetching state"):
-                snowflake_state = current_state(config=config)
-        else:
-            snowflake_state = current_state(config=config)
-    return execution_plan(config=config, state=snowflake_state)
+        return execution_plan(config=config, state=json.loads(snowflake_state))
+    if silent:
+        snowflake_state = current_state(config=config)
+        return execution_plan(config=config, state=snowflake_state)
+    with spinner("Fetching state"):
+        snowflake_state = current_state(config=config)
+        return execution_plan(config=config, state=snowflake_state)
 
 
 @click.group(name="cli")
@@ -89,7 +90,7 @@ def save():
 
 @save.command()
 @click.option(
-    "--file", default="state.json", help="Path to the file to write the state to"
+    "--file", default=DEFAULT_STATE, help="Path to the file to write the state to"
 )
 @click.option("--config", default=DEFAULT_CONFIG, help="Path to the configuration file")
 def state(file, config):
