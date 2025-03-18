@@ -68,6 +68,7 @@ grant_role_to_role = """
 DEFAULT_RETENTION_TIME = "7"
 DEFAULT_TRANSIENT_RETENTION_TIME = "1"
 DEFAULT_TRANSIENT = False
+DEFAULT_WAREHOUSE_SIZE = "x-small"
 
 jinja_env = jinja2.Environment()
 
@@ -192,7 +193,7 @@ def _create_warehouses_execution_plan(warehouses: list[dict], state: dict) -> li
     execution_plan = []
     for warehouse in warehouses:
         warehouse_name = warehouse["name"]
-        warehouse_size = warehouse.get("size", "xsmall")
+        warehouse_size = warehouse.get("size", DEFAULT_WAREHOUSE_SIZE)
         warehouse_state = state.get(warehouse_name)
 
         if warehouse_state is None:
@@ -433,3 +434,7 @@ def execution_plan(config: dict, state={}) -> list[str]:
     plan = _trim_sql_statements(plan)
 
     return plan
+
+
+def overview(execution_plan: dict) -> dict:
+    return {}
