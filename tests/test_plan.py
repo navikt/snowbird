@@ -549,6 +549,8 @@ def test_grant_role_read_on_schema():
         "grant usage on schema bar.baz to role foo",
         "grant select on all tables in schema bar.baz to role foo",
         "grant select on future tables in schema bar.baz to role foo",
+        "grant select on all views in schema bar.baz to role foo",
+        "grant select on future views in schema bar.baz to role foo",
     ]
     result = execution_plan(config)
     print(result)
@@ -563,10 +565,14 @@ def test_grant_role_read_on_multiple_schemas():
         "grant usage on schema bar.baz to role foo",
         "grant select on all tables in schema bar.baz to role foo",
         "grant select on future tables in schema bar.baz to role foo",
+        "grant select on all views in schema bar.baz to role foo",
+        "grant select on future views in schema bar.baz to role foo",
         "grant usage on database bar to role foo",
         "grant usage on schema bar.qux to role foo",
         "grant select on all tables in schema bar.qux to role foo",
         "grant select on future tables in schema bar.qux to role foo",
+        "grant select on all views in schema bar.qux to role foo",
+        "grant select on future views in schema bar.qux to role foo",
     ]
     result = execution_plan(config)
     print(result)

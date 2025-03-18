@@ -45,11 +45,17 @@ grant_role_usage_on_schema = """
 grant_role_create_on_schema = """
     grant create {{ type }} on schema {{ database }}.{{ schema }} to role {{ role }}
 """
-grant_role_read_on_schema = """
+grant_role_read_on_tables_in_schema = """
     grant select on all tables in schema {{ database }}.{{ schema }} to role {{ role }}
 """
-grant_role_future_read_on_schema = """
+grant_role_future_read_on_tables_in_schema = """
     grant select on future tables in schema {{ database }}.{{ schema }} to role {{ role }}
+"""
+grant_role_read_on_views_in_schema = """
+    grant select on all views in schema {{ database }}.{{ schema }} to role {{ role }}
+"""
+grant_role_future_read_on_views_in_schema = """
+    grant select on future views in schema {{ database }}.{{ schema }} to role {{ role }}
 """
 
 grant_role_to_user = """
@@ -272,14 +278,24 @@ def _grant_role_execution_plan(grants: list[dict]) -> list[str]:
             execution_plan.append(grant_role_usage_on_schema_statement)
 
             grant_role_read_on_schema_statement = jinja_env.from_string(
-                grant_role_read_on_schema
+                grant_role_read_on_tables_in_schema
             ).render(role=role, database=database, schema=schema)
             execution_plan.append(grant_role_read_on_schema_statement)
 
             grant_role_future_read_on_schema_statement = jinja_env.from_string(
-                grant_role_future_read_on_schema
+                grant_role_future_read_on_tables_in_schema
             ).render(role=role, database=database, schema=schema)
             execution_plan.append(grant_role_future_read_on_schema_statement)
+
+            grant_role_read_on_views_in_schema_statement = jinja_env.from_string(
+                grant_role_read_on_views_in_schema
+            ).render(role=role, database=database, schema=schema)
+            execution_plan.append(grant_role_read_on_views_in_schema_statement)
+
+            grant_role_future_read_on_views_in_schema_statement = jinja_env.from_string(
+                grant_role_future_read_on_views_in_schema
+            ).render(role=role, database=database, schema=schema)
+            execution_plan.append(grant_role_future_read_on_views_in_schema_statement)
 
         for full_schema_path in write_on_schemas:
             database, schema = full_schema_path.split(".")
