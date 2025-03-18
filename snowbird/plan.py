@@ -446,6 +446,10 @@ def overview(execution_plan: dict) -> dict:
     modify_databases = [d for d in alter_databases if d not in create_databases]
 
     create_schemas = [s.split()[5] for s in execution_plan if "create schema" in s]
+    create_transient_schemas = [
+        s.split()[6] for s in execution_plan if "create transient schema" in s
+    ]
+    create_schemas.extend(create_transient_schemas)
     alter_schemas = [s for s in execution_plan if "alter schema" in s]
     modify_schemas = [
         s.split()[2] for s in alter_schemas if s.split()[2] not in create_schemas

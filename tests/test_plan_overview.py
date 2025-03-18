@@ -67,3 +67,14 @@ def test_create_schema_overview():
     print(plan_overview)
     result = plan_overview.get("create_schemas")
     assert result == expected
+
+
+def test_create_transient_schema_overview():
+    plan = [
+        "create transient schema if not exists foo",
+    ]
+    expected = ["foo"]
+    plan_overview = overview(execution_plan=plan)
+    print(plan_overview)
+    result = plan_overview.get("create_schemas")
+    assert result == expected
