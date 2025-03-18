@@ -4,7 +4,7 @@ from pathlib import Path
 
 import click
 
-from snowbird.plan import execution_plan, load_config
+from snowbird.plan import execution_plan, load_config, overview
 from snowbird.state import current_state
 from snowbird.utils import progressbar, snowflake_cursor, spinner
 
@@ -53,37 +53,21 @@ def plan(config, silent, state, stateless):
     execution_plan = _setup_execution_plan(
         config=config, silent=silent, state=state, stateless=stateless
     )
-    create_databases = [s.split()[5] for s in execution_plan if "create database" in s]
-    alter_databases = [s.split()[2] for s in execution_plan if "alter database" in s]
-    modify_databases = [d for d in alter_databases if d not in create_databases]
-
-    create_schemas = [s.split()[5] for s in execution_plan if "create schema" in s]
-    alter_schemas = [s for s in execution_plan if "alter schema" in s]
-    modify_schemas = [
-        s.split()[2] for s in alter_schemas if s.split()[2] not in create_schemas
-    ]
-
-    create_roles = [s.split()[5] for s in execution_plan if "create role" in s]
-    alter_roles = [s.split()[2] for s in execution_plan if "alter role" in s]
-    modify_roles = [r for r in alter_roles if r not in create_roles]
-
-    create_users = [s.split()[5] for s in execution_plan if "create user" in s]
-    alter_users = [s.split()[2] for s in execution_plan if "alter user" in s]
-    modify_users = [u for u in alter_users if u not in create_users]
-
-    create_warehouses = [
-        s.split()[5] for s in execution_plan if "create warehouse" in s
-    ]
-    alter_warehouses = [s.split()[2] for s in execution_plan if "alter warehouse" in s]
-    print(alter_warehouses)
-    modify_warehouses = [w for w in alter_warehouses if w not in create_warehouses]
-
-    alter_warehouses = [s for s in execution_plan if "alter warehouse" in s]
-
-    grant_selects = [s for s in execution_plan if "grant select on" in s]
-    grant_create = [s for s in execution_plan if "grant create table" in s]
-    grant_roles = [s for s in execution_plan if "grant role" in s and "to role" in s]
-    grant_users = [s for s in execution_plan if "grant role" in s and "to user" in s]
+    plan_overview = overview(execution_plan=execution_plan)
+    create_databases = plan_overview.get("create_databases", [])
+    create_schemas = plan_overview.get("create_schemas", [])
+    create_roles = plan_overview.get("create_roles", [])
+    create_users = plan_overview.get("create_users", [])
+    create_warehouses = plan_overview.get("create_warehouses", [])
+    modify_databases = plan_overview.get("modify_databases", [])
+    modify_schemas = plan_overview.get("modify_schemas", [])
+    modify_roles = plan_overview.get("modify_roles", [])
+    modify_users = plan_overview.get("modify_users", [])
+    modify_warehouses = plan_overview.get("modify_warehouses", [])
+    grant_selects = plan_overview.get("grant_selects", [])
+    grant_create = plan_overview.get("grant_create", [])
+    grant_roles = plan_overview.get("grant_roles", [])
+    grant_users = plan_overview.get("grant_users", [])
 
     if silent == False:
         click.echo("\nCreate or modify:")
