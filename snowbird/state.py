@@ -66,15 +66,10 @@ def current_state(config: dict) -> dict:
         users = cursor.fetchall()
         cursor.execute("show roles")
         roles = cursor.fetchall()
-        db_grants = _get_db_grants(db_config, cursor)
-        schema_grants = _get_schema_grants(db_schemas, cursor)
-        schema_future_grants = _get_schema_future_grants(db_schemas, cursor)
-        role_grants = _get_role_grants(roles_config, cursor)
     return {
         "databases": databases,
         "warehouses": warehouses,
         "schemas": schemas,
         "users": users,
         "roles": roles,
-        "grants": db_grants + schema_grants + schema_future_grants + role_grants,
     }
