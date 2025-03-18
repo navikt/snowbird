@@ -75,12 +75,12 @@ def apply(config, silent, state, stateless):
         config=config, silent=silent, state=state, stateless=stateless
     )
     with snowflake_cursor() as cursor:
-        if silent == False:
-            for statement in progressbar(execution_plan, title="Executing plan"):
-                cursor.execute(statement)
-        else:
+        if silent:
             for statement in execution_plan:
                 cursor.execute(statement)
+            return
+        for statement in progressbar(execution_plan, title="Executing plan"):
+            cursor.execute(statement)
 
 
 @cli.group(name="save")
