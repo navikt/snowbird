@@ -438,6 +438,10 @@ def execution_plan(config: dict, state={}) -> list[str]:
 
 def overview(execution_plan: dict) -> dict:
     create_databases = [s.split()[5] for s in execution_plan if "create database" in s]
+    create_transient_databases = [
+        s.split()[6] for s in execution_plan if "create transient database" in s
+    ]
+    create_databases.extend(create_transient_databases)
     alter_databases = [s.split()[2] for s in execution_plan if "alter database" in s]
     modify_databases = [d for d in alter_databases if d not in create_databases]
 
@@ -459,7 +463,6 @@ def overview(execution_plan: dict) -> dict:
         s.split()[5] for s in execution_plan if "create warehouse" in s
     ]
     alter_warehouses = [s.split()[2] for s in execution_plan if "alter warehouse" in s]
-    print(alter_warehouses)
     modify_warehouses = [w for w in alter_warehouses if w not in create_warehouses]
 
     alter_warehouses = [s for s in execution_plan if "alter warehouse" in s]
