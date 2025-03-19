@@ -1,16 +1,27 @@
 # Snowbird
 
-Snowbird helps configure Snowflake resources for dataproducts.
-
-Snowbird builds on [Permifrost](https://about.gitlab.com/handbook/business-technology/data-team/platform/permifrost/).
-
-In addition to the capabilities provided by permifrost snowbird also enables declarative configuration of databases, schemas, warehouses and stages.
+Snowbird is a terraform / permifrost like program for managing snowflake resources and grants
 
 ## Installation
 
 ```shell
-pip install snowbird@git+https://github.com/navikt/snowbird.git
+pip install "snowbird @ git+https://github.com/navikt/snowbird@<version>"
 ```
+
+Example:
+
+```shell
+pip install "snowbird @ git+https://github.com/navikt/snowbird@v0.3"
+```
+
+## Upgrading
+
+For upgrading to a new major or minor version, see installation
+
+```shell
+pip install --upgrade snowbird
+```
+
 ## Release
 
 Vi bruker [GitHub Release](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository) til versjonering og bygg av nytt docker-image. Versjonsnummereringen skal følge [semver](https://semver.org): `<major>.<minor>.<patch>` Eks: `0.1.0`. Siden vi enda ikke er på versjon 1 kan `minor` inkrementeres med 1 ved breaking changes i apiet og `patch` ved nye features eller bug fiks.
