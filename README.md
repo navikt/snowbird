@@ -1,6 +1,8 @@
 # Snowbird
 
-Snowbird is a terraform / permifrost like program for managing snowflake resources and grants
+Snowbird is a terraform / permifrost like program for managing snowflake resources and grants.
+
+For documentation on how to use snowbird see [commands](./COMMANDS.md) or  use the command `snowbird --help` in the terminal.
 
 ## Installation
 
@@ -36,7 +38,3 @@ For å release en ny versjon må en gjøre følgende:
     * Steg 1: Velg den nye `<major>.<minor>.<patch>` taggen.
     * Steg 2: Trykk Generate release notes for å få utfylt relevant informasjon
     * Steg 3: Trykk Publish release.
-
-## Actions
-
-TODO...
