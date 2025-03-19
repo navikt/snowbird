@@ -13,6 +13,7 @@ Commands:
   apply
   plan
   save
+
 Usage: snowbird plan [OPTIONS]
 
 Options:
@@ -22,6 +23,7 @@ Options:
   --state TEXT   Path snowflake state file to compare against
   --stateless    Run without state comparison
   --help         Show this message and exit.
+
 Usage: snowbird apply [OPTIONS]
 
 Options:
@@ -30,6 +32,7 @@ Options:
   --state TEXT   Path snowflake state file to compare against
   --stateless    Run without state comparison
   --help         Show this message and exit.
+
 Usage: snowbird save [OPTIONS] COMMAND [ARGS]...
 
 Options:
@@ -37,10 +40,12 @@ Options:
 
 Commands:
   state
+
 Usage: snowbird save state [OPTIONS]
 
 Options:
   --file TEXT    Path to the file to write the state to
   --config TEXT  Path to the configuration file
   --help         Show this message and exit.
+
 ```
