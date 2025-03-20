@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+git switch main
+git pull
+git push
+
 uncommitted_files=$(git diff-index --quiet HEAD -- || echo "untracked")
 
 continue="y"
