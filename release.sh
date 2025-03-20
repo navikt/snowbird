@@ -32,7 +32,7 @@ if [ "$continue" != "y" ]; then
 fi
 
 git tag "v$version"
-git tag -f "v$major_minor"
 git push origin "v$version"
+git tag -f "v$major_minor"
 git push -f origin "v$major_minor"
 gh release create "v$version" --generate-notes
