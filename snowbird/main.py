@@ -148,10 +148,18 @@ def apply(config, silent, state, stateless):
     with snowflake_cursor() as cursor:
         if silent:
             for statement in execution_plan:
-                cursor.execute(statement)
+                try:
+                    cursor.execute(statement)
+                except Exception as e:
+                    msg = f"Error executing statement: {statement}\n{str(e)}"
+                    print(msg)
             return
         for statement in progressbar(execution_plan, title="Executing plan"):
-            cursor.execute(statement)
+            try:
+                cursor.execute(statement)
+            except Exception as e:
+                    msg = f"Error executing statement: {statement}\n{str(e)}"
+                    print(msg)
 
 
 @cli.group(name="save")

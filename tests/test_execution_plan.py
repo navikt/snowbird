@@ -279,8 +279,8 @@ def test_create_warehouse():
     }
     expected = [
         "use role sysadmin",
-        "create warehouse if not exists foo with warehouse_size = x-small auto_suspend = 30 initially_suspended = true",
-        "alter warehouse foo set warehouse_size = x-small",
+        "create warehouse if not exists foo with warehouse_size = 'x-small' auto_suspend = 30 initially_suspended = true",
+        "alter warehouse foo set warehouse_size = 'x-small'",
     ]
     result = execution_plan(config)
     print(result)
@@ -295,8 +295,8 @@ def test_create_warehouse_with_size():
     }
     expected = [
         "use role sysadmin",
-        "create warehouse if not exists foo with warehouse_size = large auto_suspend = 30 initially_suspended = true",
-        "alter warehouse foo set warehouse_size = large",
+        "create warehouse if not exists foo with warehouse_size = 'large' auto_suspend = 30 initially_suspended = true",
+        "alter warehouse foo set warehouse_size = 'large'",
     ]
     result = execution_plan(config)
     print(result)
@@ -312,10 +312,10 @@ def test_create_multiple_warehouses():
     }
     expected = [
         "use role sysadmin",
-        "create warehouse if not exists foo with warehouse_size = x-small auto_suspend = 30 initially_suspended = true",
-        "alter warehouse foo set warehouse_size = x-small",
-        "create warehouse if not exists bar with warehouse_size = x-small auto_suspend = 30 initially_suspended = true",
-        "alter warehouse bar set warehouse_size = x-small",
+        "create warehouse if not exists foo with warehouse_size = 'x-small' auto_suspend = 30 initially_suspended = true",
+        "alter warehouse foo set warehouse_size = 'x-small'",
+        "create warehouse if not exists bar with warehouse_size = 'x-small' auto_suspend = 30 initially_suspended = true",
+        "alter warehouse bar set warehouse_size = 'x-small'",
     ]
     result = execution_plan(config)
     print(result)
@@ -358,7 +358,7 @@ def test_modifying_warehouse_size():
     }
     expected = [
         "use role sysadmin",
-        "alter warehouse foo set warehouse_size = large",
+        "alter warehouse foo set warehouse_size = 'large'",
     ]
     result = execution_plan(config=config, state=state)
     print(result)

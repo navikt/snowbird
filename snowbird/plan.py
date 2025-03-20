@@ -12,13 +12,13 @@ alter_schema_data_retention = "alter schema {{ database }}.{{ schema }} set data
 
 create_warehouse = """
     create warehouse if not exists {{ warehouse }} with
-        warehouse_size = {{ size }}
+        warehouse_size = '{{ size }}'
         auto_suspend = 30
         initially_suspended = true
 """
 alter_warehouse = """
     alter warehouse {{ warehouse }} set
-        warehouse_size = {{ size }}
+        warehouse_size = '{{ size }}'
 """
 
 create_user = """
