@@ -15,7 +15,4 @@ if [ -f .venv/bin/pip ]; then
   source .venv/bin/activate
 fi
 
-#Snowbird
-. ./tests/infrastructure/auth.sh
-
 code .
