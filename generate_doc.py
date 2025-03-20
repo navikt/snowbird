@@ -6,7 +6,6 @@ from snowbird.main import cli as snowbird
 def generate_doc():
     with open("COMMANDS.md", "w") as f:
         f.write("# Commands\n\n")
-        f.write("## CLI\n\n")
         f.write("```text\n")
         recursive_help(snowbird, f, None)
         f.write("```\n")

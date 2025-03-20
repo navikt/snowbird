@@ -1,7 +1,5 @@
 # Commands
 
-## CLI
-
 ```text
 Usage: snowbird [OPTIONS] COMMAND [ARGS]...
 
