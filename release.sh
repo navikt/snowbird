@@ -35,4 +35,4 @@ git tag "v$version"
 git tag -f "v$major_minor"
 git push origin "v$version"
 git push -f origin "v$major_minor"
-gh release create "v$version" --generated-notes
+gh release create "v$version" --generate-notes
