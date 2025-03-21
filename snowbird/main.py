@@ -1,5 +1,6 @@
 import json
 import re
+import sys
 from pathlib import Path
 
 import click
@@ -150,16 +151,16 @@ def apply(config, silent, state, stateless):
             for statement in execution_plan:
                 try:
                     cursor.execute(statement)
-                except Exception as e:
-                    msg = f"Error executing statement: {statement}\n{str(e)}"
-                    print(msg)
+                except Exception:
+                    sys.exit(1)
             return
         for statement in progressbar(execution_plan, title="Executing plan"):
             try:
                 cursor.execute(statement)
             except Exception as e:
-                    msg = f"Error executing statement: {statement}\n{str(e)}"
-                    print(msg)
+                msg = f"Error executing statement: {statement}\n{str(e)}"
+                print(msg)
+                sys.exit(1)
 
 
 @cli.group(name="save")

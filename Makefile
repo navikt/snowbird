@@ -14,6 +14,6 @@ install:
 docs:
 	${PY} generate_doc.py
 
-.PHONE: release ## publish new release
+.PHONY: release ## publish new release
 release:
 	./release.sh
