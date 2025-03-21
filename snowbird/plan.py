@@ -469,8 +469,6 @@ def overview(execution_plan: dict) -> dict:
     alter_warehouses = [s.split()[2] for s in execution_plan if "alter warehouse" in s]
     modify_warehouses = [w for w in alter_warehouses if w not in create_warehouses]
 
-    alter_warehouses = [s for s in execution_plan if "alter warehouse" in s]
-
     grant_selects = [s for s in execution_plan if "grant select on" in s]
     grant_create = [s for s in execution_plan if "grant create table" in s]
     grant_roles = [s for s in execution_plan if "grant role" in s and "to role" in s]
