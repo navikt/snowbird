@@ -242,18 +242,20 @@ def _create_users_execution_plan(users: list[dict], state: dict) -> list[str]:
     return execution_plan
 
 
-def _create_roles_execution_plan(roles: list[dict]) -> list[str]:
+def _create_roles_execution_plan(roles: list[dict], state: dict) -> list[str]:
     if len(roles) == 0:
         return []
-    exeution_plan = []
+    execution_plan = []
     for role in roles:
         role_name = role["name"]
+        role_state = state.get(role_name)
 
-        create_role_statement = jinja_env.from_string(create_role).render(
-            role=role_name
-        )
-        exeution_plan.append(create_role_statement)
-    return exeution_plan
+        if role_state is None:
+            create_role_statement = jinja_env.from_string(create_role).render(
+                role=role_name
+            )
+            execution_plan.append(create_role_statement)
+    return execution_plan
 
 
 def _grant_role_execution_plan(grants: list[dict]) -> list[str]:
@@ -427,6 +429,19 @@ def _user_state(users: list[dict], state: dict) -> dict:
                 }
     return existing_state
 
+def _role_state(roles: list[dict], state: dict) -> dict:
+    if len(roles) == 0:
+        return {}
+    if state.get("roles") is None:
+        return {}
+    existing_state = {}
+    for role in roles:
+        role_name = role["name"].lower()
+        for role_state in state["roles"]:
+            if role_name == role_state["name"].lower():
+                existing_state[role_name] = {}
+    return existing_state
+
 
 def execution_plan(config: dict, state={}) -> list[str]:
     databases = config.get("databases", [])
@@ -439,6 +454,7 @@ def execution_plan(config: dict, state={}) -> list[str]:
     schema_state = _schema_state(databases, state)
     warehouses_state = _warehouse_state(warehouses, state)
     users_state = _user_state(users, state)
+    roles_state = _role_state(roles, state)
 
     plan = []
     plan.extend(
@@ -452,7 +468,7 @@ def execution_plan(config: dict, state={}) -> list[str]:
         plan.insert(0, use_sysadmin)
     plan_len = len(plan)
     plan.extend(_create_users_execution_plan(users=users, state=users_state))
-    plan.extend(_create_roles_execution_plan(roles))
+    plan.extend(_create_roles_execution_plan(roles=roles, state=roles_state))
     plan.extend(_grant_role_execution_plan(grants))
     if len(plan) > plan_len:
         plan.insert(plan_len, use_useradmin)
