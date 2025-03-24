@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="snowbird",
-    version="0.3.2",
+    version="0.3.3",
     description=("Snowbird helps configure Snowflake resources for dataproducts"),
     # package_dir={"": "inbound"},
     packages=find_packages(include=("snowbird/*,")),
