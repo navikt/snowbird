@@ -452,6 +452,7 @@ def test_create_role():
     expected = [
         "use role useradmin",
         "create role if not exists foo",
+        "grant role foo to role sysadmin",
     ]
     result = execution_plan(config)
     print(result)
@@ -471,7 +472,7 @@ def test_do_nothing_when_role_config_equals_state():
             }
         ]
     }
-    expected = []
+    expected = ["use role useradmin", "grant role foo to role sysadmin"]
     result = execution_plan(config=config, state=state)
     print(result)
     assert result == expected
@@ -638,6 +639,7 @@ def test_switching_executer_role():
         "alter schema foo.bar set data_retention_time_in_days = 7",
         "use role useradmin",
         "create role if not exists baz",
+        "grant role baz to role sysadmin",
     ]
     result = execution_plan(config)
     print(result)
