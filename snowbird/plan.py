@@ -255,6 +255,11 @@ def _create_roles_execution_plan(roles: list[dict], state: dict) -> list[str]:
                 role=role_name
             )
             execution_plan.append(create_role_statement)
+
+        grant_role_to_sysadmin_statement = jinja_env.from_string(
+            grant_role_to_role
+        ).render(role=role_name, to_role="sysadmin")
+        execution_plan.append(grant_role_to_sysadmin_statement)
     return execution_plan
 
 
