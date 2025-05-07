@@ -460,6 +460,7 @@ def test_create_role():
 
 
 def test_do_nothing_when_role_config_equals_state():
+    # TODO: This is not implemented yet and will fail.
     config = {
         "roles": [
             {"name": "foo"},
@@ -472,7 +473,7 @@ def test_do_nothing_when_role_config_equals_state():
             }
         ]
     }
-    expected = ["use role useradmin", "grant role foo to role sysadmin"]
+    expected = []
     result = execution_plan(config=config, state=state)
     print(result)
     assert result == expected

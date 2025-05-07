@@ -256,10 +256,10 @@ def _create_roles_execution_plan(roles: list[dict], state: dict) -> list[str]:
             )
             execution_plan.append(create_role_statement)
 
-        grant_role_to_sysadmin_statement = jinja_env.from_string(
-            grant_role_to_role
-        ).render(role=role_name, to_role="sysadmin")
-        execution_plan.append(grant_role_to_sysadmin_statement)
+    #        grant_role_to_sysadmin_statement = jinja_env.from_string(
+    #            grant_role_to_role
+    #        ).render(role=role_name, to_role="sysadmin")
+    #        execution_plan.append(grant_role_to_sysadmin_statement)
     return execution_plan
 
 
@@ -434,6 +434,7 @@ def _user_state(users: list[dict], state: dict) -> dict:
                 }
     return existing_state
 
+
 def _role_state(roles: list[dict], state: dict) -> dict:
     if len(roles) == 0:
         return {}
@@ -446,6 +447,21 @@ def _role_state(roles: list[dict], state: dict) -> dict:
             if role_name == role_state["name"].lower():
                 existing_state[role_name] = {}
     return existing_state
+
+
+def _grant_roles_to_sysadmin(roles: list[dict]) -> list[dict]:
+    if len(roles) == 0:
+        return []
+    grants = []
+    for role in roles:
+        role_name = role["name"]
+        grants.append(
+            {
+                "role": role_name,
+                "to_roles": ["sysadmin"],
+            }
+        )
+    return grants
 
 
 def execution_plan(config: dict, state={}) -> list[str]:
@@ -474,7 +490,11 @@ def execution_plan(config: dict, state={}) -> list[str]:
     plan_len = len(plan)
     plan.extend(_create_users_execution_plan(users=users, state=users_state))
     plan.extend(_create_roles_execution_plan(roles=roles, state=roles_state))
-    plan.extend(_grant_role_execution_plan(grants))
+
+    # Temporarily hack to grant created roles to sysadmin
+    grants.extend(_grant_roles_to_sysadmin(roles=roles))
+
+    plan.extend(_grant_role_execution_plan(grants=grants))
     if len(plan) > plan_len:
         plan.insert(plan_len, use_useradmin)
     plan = _trim_sql_statements(plan)
