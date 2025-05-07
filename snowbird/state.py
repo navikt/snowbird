@@ -40,11 +40,11 @@ def _get_schema_future_grants(
     return grants
 
 
-def _get_role_grants(roles: list[dict], cursor: SnowflakeCursor) -> list[dict]:
-    grants: list[dict] = []
+def _get_of_role_grants(roles: list[dict], cursor: SnowflakeCursor) -> dict:
+    grants: dict = {}
     for role in roles:
-        cursor.execute(f"show grants to role {role['name']}")
-        grants.extend(cursor.fetchall())
+        cursor.execute(f"show grants of role {role['name']}")
+        grants[role["name"]] = cursor.fetchall()
     return grants
 
 
@@ -56,20 +56,17 @@ def current_state(config: dict) -> dict:
     roles_config = config.get("roles", [])
 
     with snowflake_cursor() as cursor:
-        cursor.execute("show databases")
-        databases = cursor.fetchall()
-        cursor.execute("show warehouses")
-        warehouses = cursor.fetchall()
-        cursor.execute("show schemas")
-        schemas = cursor.fetchall()
-        cursor.execute("show users")
-        users = cursor.fetchall()
-        cursor.execute("show roles")
-        roles = cursor.fetchall()
+        databases = cursor.execute("show databases").fetchall()
+        warehouses = cursor.execute("show warehouses").fetchall()
+        schemas = cursor.execute("show schemas").fetchall()
+        users = cursor.execute("show users").fetchall()
+        roles = cursor.execute("show roles").fetchall()
+        grants_of_roles = _get_of_role_grants(roles_config, cursor)
     return {
         "databases": databases,
         "warehouses": warehouses,
         "schemas": schemas,
         "users": users,
         "roles": roles,
+        "grants": {"of_roles": grants_of_roles},
     }

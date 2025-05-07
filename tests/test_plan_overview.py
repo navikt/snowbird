@@ -295,3 +295,25 @@ def test_grant_users_overview():
     print(plan_overview)
     result = plan_overview.get("grant_users")
     assert result == expected
+
+
+def test_revoke_roles_overview():
+    plan = [
+        "revoke role bar from role foo",
+    ]
+    expected = plan
+    plan_overview = overview(execution_plan=plan)
+    print(plan_overview)
+    result = plan_overview.get("revoke_roles")
+    assert result == expected
+
+
+def test_revoke_users_overview():
+    plan = [
+        "revoke role bar from user foo",
+    ]
+    expected = plan
+    plan_overview = overview(execution_plan=plan)
+    print(plan_overview)
+    result = plan_overview.get("revoke_users")
+    assert result == expected

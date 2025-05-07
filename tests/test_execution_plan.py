@@ -452,7 +452,6 @@ def test_create_role():
     expected = [
         "use role useradmin",
         "create role if not exists foo",
-        "grant role foo to role sysadmin",
     ]
     result = execution_plan(config)
     print(result)
@@ -471,7 +470,17 @@ def test_do_nothing_when_role_config_equals_state():
             {
                 "name": "FOO",
             }
-        ]
+        ],
+        "grants": {
+            "of_roles": {
+                "foo": [
+                    {
+                        "grantee_name": "SYSADMIN",
+                        "granted_to": "ROLE",
+                    }
+                ]
+            }
+        },
     }
     expected = []
     result = execution_plan(config=config, state=state)
@@ -484,6 +493,7 @@ def test_grant_role_warehouse():
     expected = [
         "use role useradmin",
         "grant usage on warehouse bar to role foo",
+        "grant role foo to role sysadmin",
     ]
     result = execution_plan(config)
     print(result)
@@ -496,6 +506,7 @@ def test_grant_role_multiple_warehouses():
         "use role useradmin",
         "grant usage on warehouse bar to role foo",
         "grant usage on warehouse baz to role foo",
+        "grant role foo to role sysadmin",
     ]
     result = execution_plan(config)
     print(result)
@@ -513,6 +524,7 @@ def test_grant_role_write_on_schema():
         "grant create dynamic table on schema bar.baz to role foo",
         "grant create task on schema bar.baz to role foo",
         "grant create alert on schema bar.baz to role foo",
+        "grant role foo to role sysadmin",
     ]
     result = execution_plan(config)
     print(result)
@@ -537,6 +549,7 @@ def test_grant_role_write_on_multiple_schemas():
         "grant create dynamic table on schema bar.qux to role foo",
         "grant create task on schema bar.qux to role foo",
         "grant create alert on schema bar.qux to role foo",
+        "grant role foo to role sysadmin",
     ]
     result = execution_plan(config)
     print(result)
@@ -553,6 +566,7 @@ def test_grant_role_read_on_schema():
         "grant select on future tables in schema bar.baz to role foo",
         "grant select on all views in schema bar.baz to role foo",
         "grant select on future views in schema bar.baz to role foo",
+        "grant role foo to role sysadmin",
     ]
     result = execution_plan(config)
     print(result)
@@ -575,6 +589,7 @@ def test_grant_role_read_on_multiple_schemas():
         "grant select on future tables in schema bar.qux to role foo",
         "grant select on all views in schema bar.qux to role foo",
         "grant select on future views in schema bar.qux to role foo",
+        "grant role foo to role sysadmin",
     ]
     result = execution_plan(config)
     print(result)
@@ -586,6 +601,7 @@ def test_grant_role_to_role():
     expected = [
         "use role useradmin",
         "grant role foo to role bar",
+        "grant role foo to role sysadmin",
     ]
     result = execution_plan(config)
     print(result)
@@ -598,6 +614,7 @@ def test_grant_role_to_multiple_roles():
         "use role useradmin",
         "grant role foo to role bar",
         "grant role foo to role baz",
+        "grant role foo to role sysadmin",
     ]
     result = execution_plan(config)
     print(result)
@@ -608,6 +625,7 @@ def test_grant_role_to_user():
     config = {"grants": [{"role": "foo", "to_users": ["bar"]}]}
     expected = [
         "use role useradmin",
+        "grant role foo to role sysadmin",
         "grant role foo to user bar",
     ]
     result = execution_plan(config)
@@ -619,10 +637,98 @@ def test_grant_role_to_multiple_users():
     config = {"grants": [{"role": "foo", "to_users": ["bar", "baz"]}]}
     expected = [
         "use role useradmin",
+        "grant role foo to role sysadmin",
         "grant role foo to user bar",
         "grant role foo to user baz",
     ]
     result = execution_plan(config)
+    print(result)
+    assert result == expected
+
+
+def test_revoke_role_from_user():
+    config = {
+        "grants": [{"role": "foo"}],
+    }
+    state = {
+        "grants": {
+            "of_roles": {
+                "foo": [
+                    {
+                        "grantee_name": "BAR",
+                        "granted_to": "USER",
+                    },
+                ]
+            }
+        },
+    }
+    expected = [
+        "use role useradmin",
+        "revoke role foo from user bar",
+        "grant role foo to role sysadmin",
+    ]
+    result = execution_plan(config=config, state=state)
+    print(result)
+    assert result == expected
+
+
+def test_revoke_role_from_role():
+    config = {
+        "grants": [{"role": "foo"}],
+    }
+    state = {
+        "grants": {
+            "of_roles": {
+                "foo": [
+                    {
+                        "grantee_name": "BAR",
+                        "granted_to": "ROLE",
+                    },
+                ]
+            }
+        },
+    }
+    expected = [
+        "use role useradmin",
+        "grant role foo to role sysadmin",
+        "revoke role foo from role bar",
+    ]
+    result = execution_plan(config=config, state=state)
+    print(result)
+    assert result == expected
+
+
+def test_not_revoke_role_from_sysadmin():
+    config = {
+        "grants": [{"role": "foo"}],
+    }
+    state = {
+        "grants": {
+            "of_roles": {
+                "foo": [
+                    {
+                        "grantee_name": "SYSADMIN",
+                        "granted_to": "ROLE",
+                    },
+                ]
+            }
+        },
+    }
+    expected = []
+    result = execution_plan(config=config, state=state)
+    print(result)
+    assert result == expected
+
+
+def test_explicit_grant_role_to_sysadmin():
+    config = {
+        "grants": [{"role": "foo", "to_roles": ["sysadmin"]}],
+    }
+    expected = [
+        "use role useradmin",
+        "grant role foo to role sysadmin",
+    ]
+    result = execution_plan(config=config)
     print(result)
     assert result == expected
 
@@ -640,7 +746,6 @@ def test_switching_executer_role():
         "alter schema foo.bar set data_retention_time_in_days = 7",
         "use role useradmin",
         "create role if not exists baz",
-        "grant role baz to role sysadmin",
     ]
     result = execution_plan(config)
     print(result)
