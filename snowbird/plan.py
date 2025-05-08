@@ -65,6 +65,13 @@ grant_role_to_role = """
     grant role {{ role }} to role {{ to_role }}
 """
 
+revoke_grant_role_from_user = """
+    revoke role {{ role }} from user {{ to_user }}
+"""
+revoke_grant_role_from_role = """
+    revoke role {{ role }} from role {{ to_role }}
+"""
+
 DEFAULT_RETENTION_TIME = "7"
 DEFAULT_TRANSIENT_RETENTION_TIME = "1"
 DEFAULT_TRANSIENT = False
@@ -255,15 +262,10 @@ def _create_roles_execution_plan(roles: list[dict], state: dict) -> list[str]:
                 role=role_name
             )
             execution_plan.append(create_role_statement)
-
-        grant_role_to_sysadmin_statement = jinja_env.from_string(
-            grant_role_to_role
-        ).render(role=role_name, to_role="sysadmin")
-        execution_plan.append(grant_role_to_sysadmin_statement)
     return execution_plan
 
 
-def _grant_role_execution_plan(grants: list[dict]) -> list[str]:
+def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
     if len(grants) == 0:
         return []
     execution_plan = []
@@ -332,17 +334,64 @@ def _grant_role_execution_plan(grants: list[dict]) -> list[str]:
                 ).render(type=type, role=role, database=database, schema=schema)
                 execution_plan.append(grant_role_create_on_schema_statement)
 
-        for to_role in to_roles:
-            grant_role_to_role_statement = jinja_env.from_string(
-                grant_role_to_role
-            ).render(role=role, to_role=to_role)
-            execution_plan.append(grant_role_to_role_statement)
+        # Grant and revoke roles to users and roles
+        grant_of_role_state = state.get("of_roles", {}).get(role)
+        if grant_of_role_state is None:
+            for to_role in to_roles:
+                grant_role_to_role_statement = jinja_env.from_string(
+                    grant_role_to_role
+                ).render(role=role, to_role=to_role)
+                execution_plan.append(grant_role_to_role_statement)
 
+            for to_user in to_users:
+                grant_role_to_user_statement = jinja_env.from_string(
+                    grant_role_to_user
+                ).render(role=role, to_user=to_user)
+                execution_plan.append(grant_role_to_user_statement)
+            continue
+
+        to_roles_exists_in_database = [
+            grant["grantee_name"].lower()
+            for grant in grant_of_role_state
+            if grant["granted_to"].lower() == "role"
+        ]
+        to_users_exists_in_database = [
+            grant["grantee_name"].lower()
+            for grant in grant_of_role_state
+            if grant["granted_to"].lower() == "user"
+        ]
+        # grant user
         for to_user in to_users:
+            if to_user in to_users_exists_in_database:
+                continue
             grant_role_to_user_statement = jinja_env.from_string(
                 grant_role_to_user
             ).render(role=role, to_user=to_user)
             execution_plan.append(grant_role_to_user_statement)
+        # revoke user
+        for to_user in to_users_exists_in_database:
+            if to_user in to_users:
+                continue
+            revoke_grant_role_from_user_statement = jinja_env.from_string(
+                revoke_grant_role_from_user
+            ).render(role=role, to_user=to_user)
+            execution_plan.append(revoke_grant_role_from_user_statement)
+        # grant role
+        for to_role in to_roles:
+            if to_role in to_roles_exists_in_database:
+                continue
+            grant_role_to_role_statement = jinja_env.from_string(
+                grant_role_to_role
+            ).render(role=role, to_role=to_role)
+            execution_plan.append(grant_role_to_role_statement)
+        # revoke role
+        for to_role in to_roles_exists_in_database:
+            if to_role in to_roles:
+                continue
+            revoke_grant_role_to_role_statement = jinja_env.from_string(
+                revoke_grant_role_from_role
+            ).render(role=role, to_role=to_role)
+            execution_plan.append(revoke_grant_role_to_role_statement)
 
     return execution_plan
 
@@ -434,12 +483,13 @@ def _user_state(users: list[dict], state: dict) -> dict:
                 }
     return existing_state
 
+
 def _role_state(roles: list[dict], state: dict) -> dict:
     if len(roles) == 0:
         return {}
     if state.get("roles") is None:
         return {}
-    existing_state = {}
+    existing_state: dict = {}
     for role in roles:
         role_name = role["name"].lower()
         for role_state in state["roles"]:
@@ -448,18 +498,29 @@ def _role_state(roles: list[dict], state: dict) -> dict:
     return existing_state
 
 
+def _append_grant_roles_to_sysadmin(grants: list[dict]):
+    for grant in grants:
+        if "to_roles" not in grant:
+            grant["to_roles"] = ["sysadmin"]
+            continue
+        if "sysadmin" not in grant["to_roles"]:
+            grant["to_roles"].append("sysadmin")
+
+
 def execution_plan(config: dict, state={}) -> list[str]:
     databases = config.get("databases", [])
     warehouses = config.get("warehouses", [])
     users = config.get("users", [])
     roles = config.get("roles", [])
     grants = config.get("grants", [])
+    _append_grant_roles_to_sysadmin(grants=grants)
 
     databases_state = _database_state(databases, state)
     schema_state = _schema_state(databases, state)
     warehouses_state = _warehouse_state(warehouses, state)
     users_state = _user_state(users, state)
     roles_state = _role_state(roles, state)
+    grants_state = state.get("grants", {})
 
     plan = []
     plan.extend(
@@ -474,7 +535,8 @@ def execution_plan(config: dict, state={}) -> list[str]:
     plan_len = len(plan)
     plan.extend(_create_users_execution_plan(users=users, state=users_state))
     plan.extend(_create_roles_execution_plan(roles=roles, state=roles_state))
-    plan.extend(_grant_role_execution_plan(grants))
+
+    plan.extend(_grant_role_execution_plan(grants=grants, state=grants_state))
     if len(plan) > plan_len:
         plan.insert(plan_len, use_useradmin)
     plan = _trim_sql_statements(plan)
@@ -519,6 +581,13 @@ def overview(execution_plan: dict) -> dict:
     grant_create = [s for s in execution_plan if "grant create table" in s]
     grant_roles = [s for s in execution_plan if "grant role" in s and "to role" in s]
     grant_users = [s for s in execution_plan if "grant role" in s and "to user" in s]
+
+    revoke_roles = [
+        s for s in execution_plan if "revoke role" in s and "from role" in s
+    ]
+    revoke_users = [
+        s for s in execution_plan if "revoke role" in s and "from user" in s
+    ]
     return {
         "create_databases": create_databases,
         "modify_databases": modify_databases,
@@ -534,4 +603,6 @@ def overview(execution_plan: dict) -> dict:
         "grant_create": grant_create,
         "grant_roles": grant_roles,
         "grant_users": grant_users,
+        "revoke_roles": revoke_roles,
+        "revoke_users": revoke_users,
     }

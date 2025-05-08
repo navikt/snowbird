@@ -1,5 +1,4 @@
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -50,7 +49,10 @@ def cli():
     help="Path snowflake state file to compare against",
 )
 @click.option("--stateless", is_flag=True, help="Run without state comparison")
-def plan(config, silent, state, stateless):
+@click.option(
+    "--execution-plan", is_flag=True, default=False, help="Print the execution plan"
+)
+def plan(config, silent, state, stateless, execution_plan):
     execution_plan = _setup_execution_plan(
         config=config, silent=silent, state=state, stateless=stateless
     )
@@ -69,6 +71,8 @@ def plan(config, silent, state, stateless):
     grant_create = plan_overview.get("grant_create", [])
     grant_roles = plan_overview.get("grant_roles", [])
     grant_users = plan_overview.get("grant_users", [])
+    revoke_roles = plan_overview.get("revoke_roles", [])
+    revoke_users = plan_overview.get("revoke_users", [])
 
     if silent == False:
         click.echo("\nCreate or modify:")
@@ -121,13 +125,19 @@ def plan(config, silent, state, stateless):
         )
         click.echo(
             "Role to role:".ljust(20)
-            + f"{str(len(grant_roles)).rjust(2)} apply,   0 revoke"
+            + f"{str(len(grant_roles)).rjust(2)} apply, {str(len(revoke_roles)).rjust(3)} revoke"
         )
         click.echo(
             "Role to user:".ljust(20)
-            + f"{str(len(grant_users)).rjust(2)} apply,   0 revoke"
+            + f"{str(len(grant_users)).rjust(2)} apply, {str(len(revoke_users)).rjust(3)} revoke"
         )
         click.echo("")
+    if execution_plan == True:
+        if not silent:
+            click.echo("\nExecution plan:")
+            click.echo("----------------")
+        for statement in execution_plan:
+            click.echo(f"{statement};")
 
 
 @cli.command()
