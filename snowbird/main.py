@@ -109,7 +109,7 @@ def plan(config, silent, state, stateless, execution_plan):
             + f"{str(len(create_warehouses)).rjust(2)} create, {str(len(modify_warehouses)).rjust(2)} modify\n"
         )
 
-        click.echo(f"Grant:")
+        click.echo(f"Grant or revoke:")
         click.echo("------")
         click.echo(
             "Total:".ljust(20)
@@ -152,7 +152,7 @@ def plan(config, silent, state, stateless, execution_plan):
     help="Path snowflake state file to compare against",
 )
 @click.option("--stateless", is_flag=True, help="Run without state comparison")
-def grant(config, silent, state, stateless):
+def apply(config, silent, state, stateless):
     execution_plan = _setup_execution_plan(
         config=config, silent=silent, state=state, stateless=stateless
     )
