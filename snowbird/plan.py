@@ -336,50 +336,6 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
 
         # Grant and revoke roles to users and roles
         grant_of_role_state = state.get("of_roles", {}).get(role)
-        if grant_of_role_state is not None:
-            to_roles_exists_in_database = [
-                grant["grantee_name"].lower()
-                for grant in grant_of_role_state
-                if grant["granted_to"].lower() == "role"
-            ]
-            to_users_exists_in_database = [
-                grant["grantee_name"].lower()
-                for grant in grant_of_role_state
-                if grant["granted_to"].lower() == "user"
-            ]
-            # grant user
-            for to_user in to_users:
-                if to_user in to_users_exists_in_database:
-                    continue
-                grant_role_to_user_statement = jinja_env.from_string(
-                    grant_role_to_user
-                ).render(role=role, to_user=to_user)
-                execution_plan.append(grant_role_to_user_statement)
-            # revoke user
-            for to_user in to_users_exists_in_database:
-                if to_user in to_users:
-                    continue
-                revoke_grant_role_from_user_statement = jinja_env.from_string(
-                    revoke_grant_role_from_user
-                ).render(role=role, to_user=to_user)
-                execution_plan.append(revoke_grant_role_from_user_statement)
-            # grant role
-            for to_role in to_roles:
-                if to_role in to_roles_exists_in_database:
-                    continue
-                grant_role_to_role_statement = jinja_env.from_string(
-                    grant_role_to_role
-                ).render(role=role, to_role=to_role)
-                execution_plan.append(grant_role_to_role_statement)
-            # revoke role
-            for to_role in to_roles_exists_in_database:
-                if to_role in to_roles:
-                    continue
-                revoke_grant_role_to_role_statement = jinja_env.from_string(
-                    revoke_grant_role_from_role
-                ).render(role=role, to_role=to_role)
-                execution_plan.append(revoke_grant_role_to_role_statement)
-
         if grant_of_role_state is None:
             for to_role in to_roles:
                 grant_role_to_role_statement = jinja_env.from_string(
@@ -392,6 +348,50 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
                     grant_role_to_user
                 ).render(role=role, to_user=to_user)
                 execution_plan.append(grant_role_to_user_statement)
+            continue
+
+        to_roles_exists_in_database = [
+            grant["grantee_name"].lower()
+            for grant in grant_of_role_state
+            if grant["granted_to"].lower() == "role"
+        ]
+        to_users_exists_in_database = [
+            grant["grantee_name"].lower()
+            for grant in grant_of_role_state
+            if grant["granted_to"].lower() == "user"
+        ]
+        # grant user
+        for to_user in to_users:
+            if to_user in to_users_exists_in_database:
+                continue
+            grant_role_to_user_statement = jinja_env.from_string(
+                grant_role_to_user
+            ).render(role=role, to_user=to_user)
+            execution_plan.append(grant_role_to_user_statement)
+        # revoke user
+        for to_user in to_users_exists_in_database:
+            if to_user in to_users:
+                continue
+            revoke_grant_role_from_user_statement = jinja_env.from_string(
+                revoke_grant_role_from_user
+            ).render(role=role, to_user=to_user)
+            execution_plan.append(revoke_grant_role_from_user_statement)
+        # grant role
+        for to_role in to_roles:
+            if to_role in to_roles_exists_in_database:
+                continue
+            grant_role_to_role_statement = jinja_env.from_string(
+                grant_role_to_role
+            ).render(role=role, to_role=to_role)
+            execution_plan.append(grant_role_to_role_statement)
+        # revoke role
+        for to_role in to_roles_exists_in_database:
+            if to_role in to_roles:
+                continue
+            revoke_grant_role_to_role_statement = jinja_env.from_string(
+                revoke_grant_role_from_role
+            ).render(role=role, to_role=to_role)
+            execution_plan.append(revoke_grant_role_to_role_statement)
 
     return execution_plan
 
