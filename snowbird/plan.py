@@ -489,7 +489,7 @@ def _role_state(roles: list[dict], state: dict) -> dict:
         return {}
     if state.get("roles") is None:
         return {}
-    existing_state = {}
+    existing_state: dict = {}
     for role in roles:
         role_name = role["name"].lower()
         for role_state in state["roles"]:

@@ -459,7 +459,6 @@ def test_create_role():
 
 
 def test_do_nothing_when_role_config_equals_state():
-    # TODO: This is not implemented yet and will fail.
     config = {
         "roles": [
             {"name": "foo"},
@@ -698,7 +697,7 @@ def test_revoke_role_from_role():
     assert result == expected
 
 
-def test_not_revoke_role_from_sysadmin():
+def test_not_revoking_role_from_sysadmin_when_not_explicily_defined():
     config = {
         "grants": [{"role": "foo"}],
     }
@@ -720,7 +719,7 @@ def test_not_revoke_role_from_sysadmin():
     assert result == expected
 
 
-def test_explicit_grant_role_to_sysadmin():
+def test_explicit_granting_role_to_sysadmin_should_only_yield_one_grant_statement():
     config = {
         "grants": [{"role": "foo", "to_roles": ["sysadmin"]}],
     }
