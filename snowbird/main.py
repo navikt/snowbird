@@ -113,23 +113,23 @@ def plan(config, silent, state, stateless, execution_plan):
         click.echo("------")
         click.echo(
             "Total:".ljust(20)
-            + f"{str(len(grant_selects) + len(grant_create) + len(grant_roles) + len(grant_users)).rjust(2)} apply,   0 revoke\n"
+            + f"{str(len(grant_selects) + len(grant_create) + len(grant_roles) + len(grant_users)).rjust(2)} grant,   0 revoke\n"
         )
         click.echo(
             "Read on schema:".ljust(20)
-            + f"{str(len(grant_selects)).rjust(2)} apply,   0 revoke"
+            + f"{str(len(grant_selects)).rjust(2)} grant,   0 revoke"
         )
         click.echo(
             "Write on schema:".ljust(20)
-            + f"{str(len(grant_create)).rjust(2)} apply,   0 revoke"
+            + f"{str(len(grant_create)).rjust(2)} grant,   0 revoke"
         )
         click.echo(
             "Role to role:".ljust(20)
-            + f"{str(len(grant_roles)).rjust(2)} apply, {str(len(revoke_roles)).rjust(3)} revoke"
+            + f"{str(len(grant_roles)).rjust(2)} grant, {str(len(revoke_roles)).rjust(3)} revoke"
         )
         click.echo(
             "Role to user:".ljust(20)
-            + f"{str(len(grant_users)).rjust(2)} apply, {str(len(revoke_users)).rjust(3)} revoke"
+            + f"{str(len(grant_users)).rjust(2)} grant, {str(len(revoke_users)).rjust(3)} revoke"
         )
         click.echo("")
     if execution_plan == True:
@@ -152,7 +152,7 @@ def plan(config, silent, state, stateless, execution_plan):
     help="Path snowflake state file to compare against",
 )
 @click.option("--stateless", is_flag=True, help="Run without state comparison")
-def apply(config, silent, state, stateless):
+def grant(config, silent, state, stateless):
     execution_plan = _setup_execution_plan(
         config=config, silent=silent, state=state, stateless=stateless
     )
