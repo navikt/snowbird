@@ -63,7 +63,7 @@ vdc clone my_database_raw__preprod my_database_raw__preprod_bck_20250404_drp_202
 
 #### Step 2
 
-Migrate the `snowflake.yml`-file to the new schema. You can use [vdl-eiendom](https://github.com/navikt/vdl-eiendom/commit/247e4e97064f89f791301c99b41fc2056cd4aaeb) or [vdl-lonn](https://github.com/navikt/vdl-lonn/blob/main/infrastructure/snowflake.yml) for inspiration.
+Migrate the `snowflake.yml`-file to the new schema. You can use [vdl-eiendom](https://github.com/navikt/vdl-eiendom/commit/247e4e97064f89f791301c99b41fc2056cd4aaeb), [vdl-lonn](https://github.com/navikt/vdl-lonn/blob/main/infrastructure/snowflake.yml) and [tests/snowflake.yml](https://github.com/navikt/snowbird/blob/main/tests/snowflake.yml) for inspiration.
 
 #### Step 3 (optional but recommended)
 
