@@ -81,7 +81,7 @@ Example on how to do this from the snowflake UI:
 
 #### Step 4
 
-Run the 'snowbird apply' command from the directory where you tore the `snowflake.yml`-file:
+Run the 'snowbird apply' command from the directory where the `snowflake.yml`-file lives:
 
 ```shell
 snowbird apply
