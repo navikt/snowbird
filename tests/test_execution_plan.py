@@ -663,7 +663,7 @@ def test_revoke_role_from_user():
     }
     expected = [
         "use role useradmin",
-        "revoke role foo from user bar",
+        'revoke role foo from user "BAR"',
         "grant role foo to role sysadmin",
     ]
     result = execution_plan(config=config, state=state)
@@ -690,7 +690,7 @@ def test_revoke_role_from_role():
     expected = [
         "use role useradmin",
         "grant role foo to role sysadmin",
-        "revoke role foo from role bar",
+        'revoke role foo from role "BAR"',
     ]
     result = execution_plan(config=config, state=state)
     print(result)
