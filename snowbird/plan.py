@@ -66,10 +66,10 @@ grant_role_to_role = """
 """
 
 revoke_grant_role_from_user = """
-    revoke role {{ role }} from user {{ to_user }}
+    revoke role {{ role }} from user "{{ to_user.upper() }}"
 """
 revoke_grant_role_from_role = """
-    revoke role {{ role }} from role {{ to_role }}
+    revoke role {{ role }} from role "{{ to_role.upper() }}"
 """
 
 DEFAULT_RETENTION_TIME = "7"
@@ -374,7 +374,7 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
                 continue
             revoke_grant_role_from_user_statement = jinja_env.from_string(
                 revoke_grant_role_from_user
-            ).render(role=role, to_user=to_user)
+            ).render(role=role, to_user=to_user.upper())
             execution_plan.append(revoke_grant_role_from_user_statement)
         # grant role
         for to_role in to_roles:
