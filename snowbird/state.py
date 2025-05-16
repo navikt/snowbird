@@ -1,3 +1,4 @@
+import snowflake
 from snowflake.connector.cursor import SnowflakeCursor
 
 from snowbird.utils import snowflake_cursor
@@ -43,8 +44,12 @@ def _get_schema_future_grants(
 def _get_of_role_grants(roles: list[dict], cursor: SnowflakeCursor) -> dict:
     grants: dict = {}
     for role in roles:
-        cursor.execute(f"show grants of role {role['name']}")
-        grants[role["name"]] = cursor.fetchall()
+        try:
+            cursor.execute(f"show grants of role {role['name']}")
+            grants[role["name"]] = cursor.fetchall()
+        except snowflake.connector.errors.ProgrammingError as e:
+            # This error is expected if the role does not exist
+            pass
     return grants
 
 
