@@ -50,9 +50,9 @@ def cli():
 )
 @click.option("--stateless", is_flag=True, help="Run without state comparison")
 @click.option(
-    "--execution-plan", is_flag=True, default=False, help="Print the execution plan"
+    "--execution-plan", "print_execution_plan", is_flag=True, default=False, help="Print the execution plan"
 )
-def plan(config, silent, state, stateless, execution_plan):
+def plan(config, silent, state, stateless, print_execution_plan):
     execution_plan = _setup_execution_plan(
         config=config, silent=silent, state=state, stateless=stateless
     )
@@ -132,7 +132,7 @@ def plan(config, silent, state, stateless, execution_plan):
             + f"{str(len(grant_users)).rjust(2)} grant, {str(len(revoke_users)).rjust(3)} revoke"
         )
         click.echo("")
-    if execution_plan == True:
+    if print_execution_plan == True:
         if not silent:
             click.echo("\nExecution plan:")
             click.echo("----------------")
