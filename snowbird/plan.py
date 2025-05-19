@@ -59,10 +59,10 @@ grant_role_future_read_on_views_in_schema = """
 """
 
 grant_role_to_user = """
-    grant role {{ role }} to user {{ to_user }}
+    grant role {{ role }} to user "{{ to_user.upper() }}"
 """
 grant_role_to_role = """
-    grant role {{ role }} to role {{ to_role }}
+    grant role {{ role }} to role "{{ to_role.upper() }}"
 """
 
 revoke_grant_role_from_user = """
