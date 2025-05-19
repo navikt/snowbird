@@ -37,6 +37,7 @@ roles:
   - name: snowbird_test_loader
   - name: snowbird_test_transformer
   - name: snowbird_test_reporter
+  - name: SNOWBIRD_TEST_UPPERCASE
 
 grants:
   - role: snowbird_test_loader
@@ -74,4 +75,6 @@ grants:
     read_on_schemas:
       - snowbird_test.mart
     to_roles:
-      - snowbird_test_to_role # Roller som får denne rollen. Bør det defineres her eller på rollen?
+      - SNOWBIRD_TEST_TO_ROLE # skrevet i uppercase for å teste at det fungerer
+
+

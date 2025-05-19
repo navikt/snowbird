@@ -86,7 +86,8 @@ class UnmodifiableStateError(Exception):
 
 def load_config(path: str) -> dict:
     with open(path) as file:
-        return yaml.safe_load(file)
+        file_content = file.read().lower()
+        return yaml.safe_load(file_content)
 
 
 def _create_databases_execution_plan(databases: list[dict], state: dict) -> list[str]:
