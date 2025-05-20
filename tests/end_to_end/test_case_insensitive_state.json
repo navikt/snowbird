@@ -1,0 +1,21 @@
+{
+    "grants": {
+        "of_roles": {
+            "snowbird_test_reporter": [
+                {
+                    "granted_to": "ROLE",
+                    "grantee_name": "SYSADMIN"
+                },
+                {
+                    "granted_to": "ROLE",
+                    "grantee_name": "SNOWBIRD_TEST_UPPERCASE"
+                }
+            ]
+        }
+    },
+    "roles": [
+        {
+            "name": "snowbird_test_reporter"
+        }
+    ]
+}

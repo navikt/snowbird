@@ -1,0 +1,6 @@
+roles:
+    - name: snowbird_test_reporter
+grants:
+  - role: snowbird_test_reporter
+    to_roles:
+      - SNOWBIRD_TEST_UPPERCASE
