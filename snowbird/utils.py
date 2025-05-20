@@ -2,6 +2,7 @@
 import io
 import os
 import sys
+from typing import Optional
 
 import snowflake.connector
 from alive_progress import alive_bar, alive_it
@@ -32,7 +33,9 @@ def progressbar(*args, **kwargs):
     return alive_it(*args, **kwargs)
 
 
-def snowflake_cursor(config: dict = _snow_config()):
+def snowflake_cursor(config: Optional[dict] = None):
+    if config is None:
+        config = _snow_config()
     sys.stdout = io.StringIO()
     cursor = snowflake.connector.connect(**config).cursor(DictCursor)
     sys.stdout = sys.__stdout__
