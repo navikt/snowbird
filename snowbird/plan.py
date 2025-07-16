@@ -24,9 +24,10 @@ alter_warehouse = """
 create_user = """
     create user if not exists {{ user }}
         type = {{ type }}
+        network_policy = {{ network_policy }}
 """
 alter_user = """
-    alter user {{ user }} set type = {{ type }}
+    alter user {{ user }} set type = {{ type }} network_policy = {{ network_policy }}
 """
 
 create_role = """
@@ -230,21 +231,25 @@ def _create_users_execution_plan(users: list[dict], state: dict) -> list[str]:
     for user in users:
         user_name = user["name"]
         user_type = user["type"]
+        user_network_policy = user["network_policy"]
         user_state = state.get(user_name)
 
         if user_state is None:
             create_user_statement = jinja_env.from_string(create_user).render(
-                user=user_name, type=user_type
+                user=user_name, type=user_type, network_policy=user_network_policy
             )
             execution_plan.append(create_user_statement)
             alter_user_statement = jinja_env.from_string(alter_user).render(
-                user=user_name, type=user_type
+                user=user_name, type=user_type, network_policy=user_network_policy
             )
             execution_plan.append(alter_user_statement)
             continue
-        if user_type != user_state["type"]:
+        if (
+            user_type != user_state["type"]
+            or user_network_policy != user_state["network_policy"]
+        ):
             alter_user_statement = jinja_env.from_string(alter_user).render(
-                user=user_name, type=user_type
+                user=user_name, type=user_type, network_policy=user_network_policy
             )
             execution_plan.append(alter_user_statement)
     return execution_plan
@@ -481,6 +486,7 @@ def _user_state(users: list[dict], state: dict) -> dict:
             if user_name == user_state["name"].lower():
                 existing_state[user_name] = {
                     "type": user_state["type"].lower(),
+                    "network_policy": user_state.get("network_policy", "").lower(),
                 }
     return existing_state
 

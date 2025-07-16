@@ -32,6 +32,7 @@ warehouses:
 users:
   - name: srv_snowbird_test
     type: legacy_service
+    network_policy: snowbird_test_network_policy
 
 roles:
   - name: snowbird_test_loader
@@ -76,5 +77,3 @@ grants:
       - snowbird_test.mart
     to_roles:
       - SNOWBIRD_TEST_TO_ROLE # skrevet i uppercase for å teste at det fungerer
-
-

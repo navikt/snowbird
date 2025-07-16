@@ -368,13 +368,13 @@ def test_modifying_warehouse_size():
 def test_create_user():
     config = {
         "users": [
-            {"name": "foo", "type": "role"},
+            {"name": "foo", "type": "role", "network_policy": "foo_policy"},
         ]
     }
     expected = [
         "use role useradmin",
-        "create user if not exists foo type = role",
-        "alter user foo set type = role",
+        "create user if not exists foo type = role network_policy = foo_policy",
+        "alter user foo set type = role network_policy = foo_policy",
     ]
     result = execution_plan(config)
     print(result)
@@ -384,16 +384,16 @@ def test_create_user():
 def test_create_multiple_users():
     config = {
         "users": [
-            {"name": "foo", "type": "role"},
-            {"name": "bar", "type": "another_role"},
+            {"name": "foo", "type": "role", "network_policy": "foo_policy"},
+            {"name": "bar", "type": "another_role", "network_policy": "bar_policy"},
         ]
     }
     expected = [
         "use role useradmin",
-        "create user if not exists foo type = role",
-        "alter user foo set type = role",
-        "create user if not exists bar type = another_role",
-        "alter user bar set type = another_role",
+        "create user if not exists foo type = role network_policy = foo_policy",
+        "alter user foo set type = role network_policy = foo_policy",
+        "create user if not exists bar type = another_role network_policy = bar_policy",
+        "alter user bar set type = another_role network_policy = bar_policy",
     ]
     result = execution_plan(config)
     print(result)
@@ -403,7 +403,7 @@ def test_create_multiple_users():
 def test_do_nothing_when_user_config_equals_state():
     config = {
         "users": [
-            {"name": "foo", "type": "role"},
+            {"name": "foo", "type": "role", "network_policy": "foo_policy"},
         ]
     }
     state = {
@@ -411,6 +411,7 @@ def test_do_nothing_when_user_config_equals_state():
             {
                 "name": "FOO",
                 "type": "ROLE",
+                "network_policy": "FOO_POLICY",
             }
         ]
     }
@@ -423,7 +424,7 @@ def test_do_nothing_when_user_config_equals_state():
 def test_modifying_user_type():
     config = {
         "users": [
-            {"name": "foo", "type": "bar"},
+            {"name": "foo", "type": "bar", "network_policy": "foo_policy"},
         ]
     }
     state = {
@@ -431,12 +432,37 @@ def test_modifying_user_type():
             {
                 "name": "FOO",
                 "type": "ROLE",
+                "network_policy": "FOO_POLICY",
             }
         ]
     }
     expected = [
         "use role useradmin",
-        "alter user foo set type = bar",
+        "alter user foo set type = bar network_policy = foo_policy",
+    ]
+    result = execution_plan(config=config, state=state)
+    print(result)
+    assert result == expected
+
+
+def test_modifying_user_network_policy():
+    config = {
+        "users": [
+            {"name": "foo", "type": "foo", "network_policy": "bar"},
+        ]
+    }
+    state = {
+        "users": [
+            {
+                "name": "FOO",
+                "type": "FOO",
+                "network_policy": "FOO_POLICY",
+            }
+        ]
+    }
+    expected = [
+        "use role useradmin",
+        "alter user foo set type = foo network_policy = bar",
     ]
     result = execution_plan(config=config, state=state)
     print(result)
