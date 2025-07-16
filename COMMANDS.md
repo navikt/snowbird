@@ -15,12 +15,13 @@ Commands:
 Usage: snowbird plan [OPTIONS]
 
 Options:
-  --config TEXT  Path to the configuration file
-  --silent       Silent mode. Can be used if you want to write the output to a
-                 file
-  --state TEXT   Path snowflake state file to compare against
-  --stateless    Run without state comparison
-  --help         Show this message and exit.
+  --config TEXT     Path to the configuration file
+  --silent          Silent mode. Can be used if you want to write the output
+                    to a file
+  --state TEXT      Path snowflake state file to compare against
+  --stateless       Run without state comparison
+  --execution-plan  Print the execution plan
+  --help            Show this message and exit.
 
 Usage: snowbird apply [OPTIONS]
 
