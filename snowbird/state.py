@@ -41,7 +41,7 @@ def _get_schema_future_grants(
     return grants
 
 
-def _get_of_role_grants(roles: list[dict], cursor: SnowflakeCursor) -> dict:
+def _get_role_grants(roles: list[dict], cursor: SnowflakeCursor) -> dict:
     grants: dict = {}
     for role in roles:
         try:
@@ -93,7 +93,7 @@ def current_state(config: dict) -> dict:
         schemas = cursor.execute("show schemas").fetchall()
         users = _get_users_state(users_config, cursor)
         roles = cursor.execute("show roles").fetchall()
-        grants_of_roles = _get_of_role_grants(roles_config, cursor)
+        grants_of_roles = _get_role_grants(roles_config, cursor)
     return {
         "databases": databases,
         "warehouses": warehouses,
