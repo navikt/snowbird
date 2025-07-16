@@ -53,18 +53,45 @@ def _get_of_role_grants(roles: list[dict], cursor: SnowflakeCursor) -> dict:
     return grants
 
 
+def _get_users_state(users: list[dict], cursor: SnowflakeCursor) -> list[dict]:
+
+    state = []
+    for user in users:
+        try:
+            # Fetch user details
+            cursor.execute(f"show users like '{user['name']}'")
+            user_details = cursor.fetchone()
+            # Fetch network policy for each user
+            cursor.execute(
+                f"show parameters like 'NETWORK_POLICY' for user {user['name']}"
+            )
+            network_policy = cursor.fetchone()
+            state.append(
+                {
+                    "name": user_details["name"],
+                    "type": user_details["type"],
+                    "network_policy": network_policy["value"],
+                }
+            )
+        except snowflake.connector.errors.ProgrammingError:
+            pass
+
+    return state
+
+
 def current_state(config: dict) -> dict:
     assert config is not None, "Config must be provided"
 
     db_config = config.get("databases", [])
     db_schemas = _get_schemas(db_config)
     roles_config = config.get("roles", [])
+    users_config = config.get("users", [])
 
     with snowflake_cursor() as cursor:
         databases = cursor.execute("show databases").fetchall()
         warehouses = cursor.execute("show warehouses").fetchall()
         schemas = cursor.execute("show schemas").fetchall()
-        users = cursor.execute("show users").fetchall()
+        users = _get_users_state(users_config, cursor)
         roles = cursor.execute("show roles").fetchall()
         grants_of_roles = _get_of_role_grants(roles_config, cursor)
     return {
