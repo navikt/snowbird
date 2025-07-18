@@ -52,6 +52,8 @@ def _get_network_policies(
         try:
             cursor.execute(f"show network policies like '{policy['name']}'")
             policy_details = cursor.fetchone()
+            if not policy_details:
+                continue
             np = {
                 "comment": policy_details["comment"],
             }
