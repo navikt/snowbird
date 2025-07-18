@@ -50,7 +50,11 @@ def cli():
 )
 @click.option("--stateless", is_flag=True, help="Run without state comparison")
 @click.option(
-    "--execution-plan", "print_execution_plan", is_flag=True, default=False, help="Print the execution plan"
+    "--execution-plan",
+    "print_execution_plan",
+    is_flag=True,
+    default=False,
+    help="Print the execution plan",
 )
 def plan(config, silent, state, stateless, print_execution_plan):
     execution_plan = _setup_execution_plan(
@@ -62,11 +66,13 @@ def plan(config, silent, state, stateless, print_execution_plan):
     create_roles = plan_overview.get("create_roles", [])
     create_users = plan_overview.get("create_users", [])
     create_warehouses = plan_overview.get("create_warehouses", [])
+    create_network_policies = plan_overview.get("create_network_policies", [])
     modify_databases = plan_overview.get("modify_databases", [])
     modify_schemas = plan_overview.get("modify_schemas", [])
     modify_roles = plan_overview.get("modify_roles", [])
     modify_users = plan_overview.get("modify_users", [])
     modify_warehouses = plan_overview.get("modify_warehouses", [])
+    modify_network_policies = plan_overview.get("modify_network_policies", [])
     grant_selects = plan_overview.get("grant_selects", [])
     grant_create = plan_overview.get("grant_create", [])
     grant_roles = plan_overview.get("grant_roles", [])
@@ -79,10 +85,20 @@ def plan(config, silent, state, stateless, print_execution_plan):
         click.echo("-----------------")
 
         total_create_objects = len(
-            create_databases + create_schemas + create_roles + create_users
+            create_databases
+            + create_schemas
+            + create_roles
+            + create_users
+            + create_warehouses
+            + create_network_policies
         )
         total_modify_objects = len(
-            modify_databases + modify_schemas + modify_roles + modify_users
+            modify_databases
+            + modify_schemas
+            + modify_roles
+            + modify_users
+            + modify_warehouses
+            + modify_network_policies
         )
         click.echo(
             "Total:".ljust(20)
@@ -106,11 +122,16 @@ def plan(config, silent, state, stateless, print_execution_plan):
         )
         click.echo(
             "Warehouses:".ljust(20)
-            + f"{str(len(create_warehouses)).rjust(2)} create, {str(len(modify_warehouses)).rjust(2)} modify\n"
+            + f"{str(len(create_warehouses)).rjust(2)} create, {str(len(modify_warehouses)).rjust(2)} modify"
         )
+        click.echo(
+            "Network policies:".ljust(20)
+            + f"{str(len(create_network_policies)).rjust(2)} create, {str(len(modify_network_policies)).rjust(2)} modify"
+        )
+        click.echo("")
 
         click.echo(f"Grant or revoke:")
-        click.echo("------")
+        click.echo("----------------")
         click.echo(
             "Total:".ljust(20)
             + f"{str(len(grant_selects) + len(grant_create) + len(grant_roles) + len(grant_users)).rjust(2)} grant,   0 revoke\n"

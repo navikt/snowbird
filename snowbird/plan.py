@@ -3,6 +3,7 @@ import yaml
 
 use_sysadmin = "use role sysadmin"
 use_useradmin = "use role useradmin"
+use_securityadmin = "use role securityadmin"
 
 create_database = "create {%- if transient %} transient {%- endif %} database if not exists {{ database }}"
 create_schema = "create {%- if transient %} transient {%- endif %} schema if not exists {{ database }}.{{ schema }}"
@@ -32,6 +33,36 @@ alter_user = """
 
 create_role = """
     create role if not exists {{ role }}
+"""
+
+create_network_policy = """
+    create network policy if not exists {{ name }}
+        allowed_network_rule_list = (
+            {% for rule in allowed_network_rule_list %}
+                '{{ rule }}'{% if not loop.last %}, {% endif %}
+            {% endfor %}
+        )
+        blocked_network_rule_list = (
+            {% for rule in blocked_network_rule_list %}
+                '{{ rule }}'{% if not loop.last %}, {% endif %}
+            {% endfor %}
+        )
+        comment = '{{ comment }}'
+"""
+
+alter_network_policy = """
+    alter network policy {{ name }} set
+        allowed_network_rule_list = (
+            {% for rule in allowed_network_rule_list %}
+                '{{ rule }}'{% if not loop.last %}, {% endif %}
+            {% endfor %}
+        )
+        blocked_network_rule_list = (
+            {% for rule in blocked_network_rule_list %}
+                '{{ rule }}'{% if not loop.last %}, {% endif %}
+            {% endfor %}
+        )
+        comment = '{{ comment }}'
 """
 
 grant_role_usage_on_warehouse = """
@@ -514,12 +545,82 @@ def _append_grant_roles_to_sysadmin(grants: list[dict]):
             grant["to_roles"].append("sysadmin")
 
 
+def _create_network_policies_execution_plan(
+    network_policies: list[dict], state: dict
+) -> list[str]:
+    if len(network_policies) == 0:
+        return []
+    execution_plan = []
+    for network_policy in network_policies:
+        policy_name = network_policy["name"]
+        policy_description = network_policy.get("description", "")
+        network_rules = network_policy["network_rules"]
+        allowed_network_rules = network_rules.get("allowed", [])
+        blocked_network_rules = network_rules.get("blocked", [])
+        if len(allowed_network_rules) == 0 and len(blocked_network_rules) == 0:
+            raise ValueError(
+                f"Network policy {policy_name} must have at least one allowed or blocked network rule."
+            )
+
+        policy_state = state.get(policy_name)
+
+        if policy_state is None:
+            create_network_policy_statement = jinja_env.from_string(
+                create_network_policy
+            ).render(
+                name=policy_name,
+                allowed_network_rule_list=allowed_network_rules,
+                blocked_network_rule_list=blocked_network_rules,
+                comment=policy_description,
+            )
+            execution_plan.append(create_network_policy_statement)
+            alter_network_policy_statement = jinja_env.from_string(
+                alter_network_policy
+            ).render(
+                name=policy_name,
+                allowed_network_rule_list=allowed_network_rules,
+                blocked_network_rule_list=blocked_network_rules,
+                comment=policy_description,
+            )
+            execution_plan.append(alter_network_policy_statement)
+            continue
+
+        policy_state_comment = policy_state.get("comment", "")
+        policy_state_allowed_network_rule_list = [
+            r["fullyQualifiedRuleName"].lower()
+            for r in policy_state.get("allowed_network_rule_list", [])
+        ]
+        policy_state_blocked_network_rule_list = [
+            r["fullyQualifiedRuleName"].lower()
+            for r in policy_state.get("blocked_network_rule_list", [])
+        ]
+
+        if (
+            policy_state_comment != policy_description
+            or policy_state_allowed_network_rule_list != allowed_network_rules
+            or policy_state_blocked_network_rule_list != blocked_network_rules
+        ):
+            alter_network_policy_statement = jinja_env.from_string(
+                alter_network_policy
+            ).render(
+                name=policy_name,
+                allowed_network_rule_list=allowed_network_rules,
+                blocked_network_rule_list=blocked_network_rules,
+                comment=policy_description,
+            )
+            execution_plan.append(alter_network_policy_statement)
+            continue
+
+    return execution_plan
+
+
 def execution_plan(config: dict, state={}) -> list[str]:
     databases = config.get("databases", [])
     warehouses = config.get("warehouses", [])
     users = config.get("users", [])
     roles = config.get("roles", [])
     grants = config.get("grants", [])
+    network_policies = config.get("network_policies", [])
     _append_grant_roles_to_sysadmin(grants=grants)
 
     databases_state = _database_state(databases, state)
@@ -528,6 +629,7 @@ def execution_plan(config: dict, state={}) -> list[str]:
     users_state = _user_state(users, state)
     roles_state = _role_state(roles, state)
     grants_state = state.get("grants", {})
+    network_policies_state = state.get("network_policies", {})
 
     plan = []
     plan.extend(
@@ -540,14 +642,24 @@ def execution_plan(config: dict, state={}) -> list[str]:
     if len(plan) > 0:
         plan.insert(0, use_sysadmin)
     plan_len = len(plan)
+
+    plan.extend(
+        _create_network_policies_execution_plan(
+            network_policies=network_policies, state=network_policies_state
+        )
+    )
+    if len(plan) > plan_len:
+        plan.insert(plan_len, use_securityadmin)
+    plan_len = len(plan)
+
     plan.extend(_create_users_execution_plan(users=users, state=users_state))
     plan.extend(_create_roles_execution_plan(roles=roles, state=roles_state))
 
     plan.extend(_grant_role_execution_plan(grants=grants, state=grants_state))
     if len(plan) > plan_len:
         plan.insert(plan_len, use_useradmin)
-    plan = _trim_sql_statements(plan)
 
+    plan = _trim_sql_statements(plan)
     return plan
 
 
@@ -584,6 +696,16 @@ def overview(execution_plan: dict) -> dict:
     alter_warehouses = [s.split()[2] for s in execution_plan if "alter warehouse" in s]
     modify_warehouses = [w for w in alter_warehouses if w not in create_warehouses]
 
+    create_network_policies = [
+        s.split()[6] for s in execution_plan if "create network policy" in s
+    ]
+    alter_network_policies = [
+        s.split()[3] for s in execution_plan if "alter network policy" in s
+    ]
+    modify_network_policies = [
+        s for s in alter_network_policies if s not in create_network_policies
+    ]
+
     grant_selects = [s for s in execution_plan if "grant select on" in s]
     grant_create = [s for s in execution_plan if "grant create table" in s]
     grant_roles = [s for s in execution_plan if "grant role" in s and "to role" in s]
@@ -606,6 +728,8 @@ def overview(execution_plan: dict) -> dict:
         "modify_users": modify_users,
         "create_warehouses": create_warehouses,
         "modify_warehouses": modify_warehouses,
+        "create_network_policies": create_network_policies,
+        "modify_network_policies": modify_network_policies,
         "grant_selects": grant_selects,
         "grant_create": grant_create,
         "grant_roles": grant_roles,
