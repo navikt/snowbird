@@ -195,6 +195,52 @@ def test_modify_user_overview():
     assert result == expected
 
 
+def test_create_network_policy_overview():
+    plan = [
+        "create network policy if not exists foo",
+    ]
+    expected = ["foo"]
+    plan_overview = overview(execution_plan=plan)
+    print(plan_overview)
+    result = plan_overview.get("create_network_policies")
+    assert result == expected
+
+
+def test_create_network_policy_overview_when_alter_exists():
+    plan = [
+        "create network policy if not exists foo",
+        "alter network policy foo set comment='bar'",
+    ]
+    expected = ["foo"]
+    plan_overview = overview(execution_plan=plan)
+    print(plan_overview)
+    result = plan_overview.get("create_network_policies")
+    assert result == expected
+
+
+def test_modify_network_policy_overview():
+    plan = [
+        "alter network policy foo set comment='bar'",
+    ]
+    expected = ["foo"]
+    plan_overview = overview(execution_plan=plan)
+    print(plan_overview)
+    result = plan_overview.get("modify_network_policies")
+    assert result == expected
+
+
+def test_no_modify_network_policy_overview_when_create_exists():
+    plan = [
+        "create network policy if not exists foo",
+        "alter network policy foo set comment='bar'",
+    ]
+    expected = []
+    plan_overview = overview(execution_plan=plan)
+    print(plan_overview)
+    result = plan_overview.get("modify_network_policies")
+    assert result == expected
+
+
 def test_no_modify_user_overview_when_create_exists():
     plan = [
         "create user if not exists foo",

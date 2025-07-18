@@ -513,6 +513,137 @@ def test_do_nothing_when_role_config_equals_state():
     assert result == expected
 
 
+def test_create_network_policy():
+    config = {
+        "network_policies": [
+            {
+                "name": "foo_policy",
+                "network_rules": {
+                    "allowed": ["snowbird_test.staging.snowbird_test_network_rule"]
+                },
+            }
+        ]
+    }
+    expected = [
+        "use role securityadmin",
+        "create network policy if not exists foo_policy allowed_network_rule_list = ( 'snowbird_test.staging.snowbird_test_network_rule' ) blocked_network_rule_list = ( ) comment = ''",
+        "alter network policy foo_policy set allowed_network_rule_list = ( 'snowbird_test.staging.snowbird_test_network_rule' ) blocked_network_rule_list = ( ) comment = ''",
+    ]
+    result = execution_plan(config)
+    print(result)
+    assert result == expected
+
+
+def test_do_nothing_when_network_policy_config_equals_state():
+    config = {
+        "network_policies": [
+            {
+                "name": "foo_policy",
+                "network_rules": {"allowed": ["foo.bar.baz"]},
+            }
+        ]
+    }
+    state = {
+        "network_policies": {
+            "foo_policy": {
+                "allowed_network_rule_list": [
+                    {"fullyQualifiedRuleName": "FOO.BAR.BAZ"},
+                ],
+                "blocked_network_rule_list": [],
+                "comment": "",
+            }
+        }
+    }
+    expected = []
+    result = execution_plan(config=config, state=state)
+    print(result)
+    assert result == expected
+
+
+def test_modifying_network_policy_comment():
+    config = {
+        "network_policies": [
+            {
+                "name": "foo_policy",
+                "description": "new comment",
+                "network_rules": {"allowed": ["foo"]},
+            }
+        ]
+    }
+    state = {
+        "network_policies": {
+            "foo_policy": {
+                "allowed_network_rule_list": [{"fullyQualifiedRuleName": "FOO"}],
+                "blocked_network_rule_list": [],
+                "comment": "old comment",
+            }
+        }
+    }
+    expected = [
+        "use role securityadmin",
+        "alter network policy foo_policy set allowed_network_rule_list = ( 'foo' ) blocked_network_rule_list = ( ) comment = 'new comment'",
+    ]
+    result = execution_plan(config=config, state=state)
+    print(result)
+    assert result == expected
+
+
+def test_modifying_network_policy_allowed_network_rules():
+    config = {
+        "network_policies": [
+            {
+                "name": "foo_policy",
+                "network_rules": {"allowed": ["new_rule"]},
+            }
+        ]
+    }
+    state = {
+        "network_policies": {
+            "foo_policy": {
+                "allowed_network_rule_list": [{"fullyQualifiedRuleName": "OLD_RULE"}],
+                "blocked_network_rule_list": [],
+                "comment": "",
+            }
+        }
+    }
+    expected = [
+        "use role securityadmin",
+        "alter network policy foo_policy set allowed_network_rule_list = ( 'new_rule' ) blocked_network_rule_list = ( ) comment = ''",
+    ]
+    result = execution_plan(config=config, state=state)
+    print(result)
+    assert result == expected
+
+
+def test_modifying_network_policy_blocked_network_rules():
+    config = {
+        "network_policies": [
+            {
+                "name": "foo_policy",
+                "network_rules": {"blocked": ["new_blocked_rule"]},
+            }
+        ]
+    }
+    state = {
+        "network_policies": {
+            "foo_policy": {
+                "allowed_network_rule_list": [],
+                "blocked_network_rule_list": [
+                    {"fullyQualifiedRuleName": "OLD_BLOCKED_RULE"}
+                ],
+                "comment": "",
+            }
+        }
+    }
+    expected = [
+        "use role securityadmin",
+        "alter network policy foo_policy set allowed_network_rule_list = ( ) blocked_network_rule_list = ( 'new_blocked_rule' ) comment = ''",
+    ]
+    result = execution_plan(config=config, state=state)
+    print(result)
+    assert result == expected
+
+
 def test_grant_role_warehouse():
     config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
     expected = [

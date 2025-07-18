@@ -29,6 +29,15 @@ warehouses:
   - name: snowbird_test_transformer
   - name: snowbird_test_reporter
 
+network_policies:
+  - name: snowbird_test_network_policy
+    description: "Network policy for Snowbird test environment"
+    network_rules:
+      allowed:
+        - snowbird_test.staging.snowbird_test_network_rule
+      #blocked:
+      #  - snowbird_test_network_rule_blocked
+
 users:
   - name: srv_snowbird_test
     type: legacy_service
