@@ -1,4 +1,4 @@
-id: snowbird_test
+id: snowbird
 
 databases:
   - name: snowbird

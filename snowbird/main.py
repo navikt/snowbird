@@ -1,3 +1,4 @@
+import importlib
 import json
 import sys
 from pathlib import Path
@@ -184,14 +185,32 @@ def apply(config, silent, state, stateless):
                     cursor.execute(statement)
                 except Exception:
                     sys.exit(1)
-            return
-        for statement in progressbar(execution_plan, title="Executing plan"):
-            try:
-                cursor.execute(statement)
-            except Exception as e:
-                msg = f"Error executing statement: {statement}\n{str(e)}"
-                print(msg)
-                sys.exit(1)
+        else:
+            for statement in progressbar(execution_plan, title="Executing plan"):
+                try:
+                    cursor.execute(statement)
+                except Exception as e:
+                    msg = f"Error executing statement: {statement}\n{str(e)}"
+                    print(msg)
+                    sys.exit(1)
+
+        new_config = load_config(path=config)
+        id = new_config["id"]
+        config_str = json.dumps(new_config, indent=4, sort_keys=True, default=str)
+        snowbird_version = importlib.metadata.version("snowbird")
+        query = f"""
+            merge into snowbird.config.latest target using (select '{id}' as id) as source
+            on target.id = source.id
+            when matched then
+                update set target.config = parse_json('{config_str}'),
+                target.snowbird_version = '{snowbird_version}',
+                target.updated_at = current_timestamp()
+            when not matched then
+                insert (id, config, snowbird_version, updated_at)
+                values (source.id, parse_json('{config_str}'), '{snowbird_version}', current_timestamp())
+            ;
+        """
+        cursor.execute(query)
 
 
 @cli.group(name="save")
