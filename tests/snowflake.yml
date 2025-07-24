@@ -1,4 +1,10 @@
+id: snowbird
+
 databases:
+  - name: snowbird
+    transient: true
+    schemas:
+      - name: config
   - name: snowbird_test_raw
     data_retention_time_in_days: 30
     schemas:
@@ -25,6 +31,7 @@ databases:
       - name: snapshots
 
 warehouses:
+  - name: snowbird_loader
   - name: snowbird_test_loader
   - name: snowbird_test_transformer
   - name: snowbird_test_reporter
@@ -44,12 +51,20 @@ users:
     network_policy: snowbird_test_network_policy
 
 roles:
+  - name: snowbird_loader
   - name: snowbird_test_loader
   - name: snowbird_test_transformer
   - name: snowbird_test_reporter
   - name: SNOWBIRD_TEST_UPPERCASE
 
 grants:
+  - role: snowbird_loader
+    warehouses:
+      - snowbird_loader
+    write_on_schemas:
+      - snowbird.config
+    to_roles:
+      - securityadmin
   - role: snowbird_test_loader
     warehouses:
       - snowbird_test_loader
