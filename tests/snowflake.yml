@@ -41,7 +41,7 @@ network_policies:
     description: "Network policy for Snowbird test environment"
     network_rules:
       allowed:
-        - snowbird_test.staging.snowbird_test_network_rule
+        - snowbird.config.snowbird_test
       #blocked:
       #  - snowbird_test_network_rule_blocked
 
@@ -56,6 +56,7 @@ roles:
   - name: snowbird_test_transformer
   - name: snowbird_test_reporter
   - name: SNOWBIRD_TEST_UPPERCASE
+  - name: snowbird_test_to_role
 
 grants:
   - role: snowbird_loader

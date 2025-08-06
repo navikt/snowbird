@@ -305,7 +305,7 @@ def _create_roles_execution_plan(roles: list[dict], state: dict) -> list[str]:
 def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
     if len(grants) == 0:
         return []
-    execution_plan = []
+    execution_plan = set()
     for grant in grants:
         role = grant["role"]
         warehouses = grant.get("warehouses", [])
@@ -318,58 +318,58 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
             grant_role_usage_on_warehouse_statement = jinja_env.from_string(
                 grant_role_usage_on_warehouse
             ).render(role=role, warehouse=warehouse)
-            execution_plan.append(grant_role_usage_on_warehouse_statement)
+            execution_plan.add(grant_role_usage_on_warehouse_statement)
 
         for full_schema_path in read_on_schemas:
             database, schema = full_schema_path.split(".")
             grant_role_usage_on_database_statement = jinja_env.from_string(
                 grant_role_usage_on_database
             ).render(role=role, database=database)
-            execution_plan.append(grant_role_usage_on_database_statement)
+            execution_plan.add(grant_role_usage_on_database_statement)
 
             grant_role_usage_on_schema_statement = jinja_env.from_string(
                 grant_role_usage_on_schema
             ).render(role=role, database=database, schema=schema)
-            execution_plan.append(grant_role_usage_on_schema_statement)
+            execution_plan.add(grant_role_usage_on_schema_statement)
 
             grant_role_read_on_schema_statement = jinja_env.from_string(
                 grant_role_read_on_tables_in_schema
             ).render(role=role, database=database, schema=schema)
-            execution_plan.append(grant_role_read_on_schema_statement)
+            execution_plan.add(grant_role_read_on_schema_statement)
 
             grant_role_future_read_on_schema_statement = jinja_env.from_string(
                 grant_role_future_read_on_tables_in_schema
             ).render(role=role, database=database, schema=schema)
-            execution_plan.append(grant_role_future_read_on_schema_statement)
+            execution_plan.add(grant_role_future_read_on_schema_statement)
 
             grant_role_read_on_views_in_schema_statement = jinja_env.from_string(
                 grant_role_read_on_views_in_schema
             ).render(role=role, database=database, schema=schema)
-            execution_plan.append(grant_role_read_on_views_in_schema_statement)
+            execution_plan.add(grant_role_read_on_views_in_schema_statement)
 
             grant_role_future_read_on_views_in_schema_statement = jinja_env.from_string(
                 grant_role_future_read_on_views_in_schema
             ).render(role=role, database=database, schema=schema)
-            execution_plan.append(grant_role_future_read_on_views_in_schema_statement)
+            execution_plan.add(grant_role_future_read_on_views_in_schema_statement)
 
         for full_schema_path in write_on_schemas:
             database, schema = full_schema_path.split(".")
             grant_role_usage_on_database_statement = jinja_env.from_string(
                 grant_role_usage_on_database
             ).render(role=role, database=database)
-            execution_plan.append(grant_role_usage_on_database_statement)
+            execution_plan.add(grant_role_usage_on_database_statement)
 
             grant_role_usage_on_schema_statement = jinja_env.from_string(
                 grant_role_usage_on_schema
             ).render(role=role, database=database, schema=schema)
-            execution_plan.append(grant_role_usage_on_schema_statement)
+            execution_plan.add(grant_role_usage_on_schema_statement)
 
             create_types = ["table", "view", "dynamic table", "task", "alert"]
             for type in create_types:
                 grant_role_create_on_schema_statement = jinja_env.from_string(
                     grant_role_create_on_schema
                 ).render(type=type, role=role, database=database, schema=schema)
-                execution_plan.append(grant_role_create_on_schema_statement)
+                execution_plan.add(grant_role_create_on_schema_statement)
 
         # Grant and revoke roles to users and roles
         grant_of_role_state = state.get("of_roles", {}).get(role)
@@ -378,13 +378,13 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
                 grant_role_to_role_statement = jinja_env.from_string(
                     grant_role_to_role
                 ).render(role=role, to_role=to_role)
-                execution_plan.append(grant_role_to_role_statement)
+                execution_plan.add(grant_role_to_role_statement)
 
             for to_user in to_users:
                 grant_role_to_user_statement = jinja_env.from_string(
                     grant_role_to_user
                 ).render(role=role, to_user=to_user)
-                execution_plan.append(grant_role_to_user_statement)
+                execution_plan.add(grant_role_to_user_statement)
             continue
 
         to_roles_exists_in_database = [
@@ -404,7 +404,7 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
             grant_role_to_user_statement = jinja_env.from_string(
                 grant_role_to_user
             ).render(role=role, to_user=to_user)
-            execution_plan.append(grant_role_to_user_statement)
+            execution_plan.add(grant_role_to_user_statement)
         # revoke user
         for to_user in to_users_exists_in_database:
             if to_user in to_users:
@@ -412,7 +412,7 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
             revoke_grant_role_from_user_statement = jinja_env.from_string(
                 revoke_grant_role_from_user
             ).render(role=role, to_user=to_user.upper())
-            execution_plan.append(revoke_grant_role_from_user_statement)
+            execution_plan.add(revoke_grant_role_from_user_statement)
         # grant role
         for to_role in to_roles:
             if to_role in to_roles_exists_in_database:
@@ -420,7 +420,7 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
             grant_role_to_role_statement = jinja_env.from_string(
                 grant_role_to_role
             ).render(role=role, to_role=to_role)
-            execution_plan.append(grant_role_to_role_statement)
+            execution_plan.add(grant_role_to_role_statement)
         # revoke role
         for to_role in to_roles_exists_in_database:
             if to_role in to_roles:
@@ -428,9 +428,9 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
             revoke_grant_role_to_role_statement = jinja_env.from_string(
                 revoke_grant_role_from_role
             ).render(role=role, to_role=to_role)
-            execution_plan.append(revoke_grant_role_to_role_statement)
+            execution_plan.add(revoke_grant_role_to_role_statement)
 
-    return execution_plan
+    return list(execution_plan)
 
 
 def _trim_sql_statements(execution_plan: list[str]) -> list[str]:
