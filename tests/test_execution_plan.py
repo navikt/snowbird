@@ -680,6 +680,8 @@ def test_grant_role_write_on_schema():
         "grant create dynamic table on schema bar.baz to role foo",
         "grant create task on schema bar.baz to role foo",
         "grant create alert on schema bar.baz to role foo",
+        "grant create streamlit on schema bar.baz to role foo",
+        "grant create stage on schema bar.baz to role foo",
         'grant role foo to role "SYSADMIN"',
     }
     result = set(execution_plan(config))
@@ -698,12 +700,16 @@ def test_grant_role_write_on_multiple_schemas():
         "grant create dynamic table on schema bar.baz to role foo",
         "grant create task on schema bar.baz to role foo",
         "grant create alert on schema bar.baz to role foo",
+        "grant create streamlit on schema bar.baz to role foo",
+        "grant create stage on schema bar.baz to role foo",
         "grant usage on schema bar.qux to role foo",
         "grant create table on schema bar.qux to role foo",
         "grant create view on schema bar.qux to role foo",
         "grant create dynamic table on schema bar.qux to role foo",
         "grant create task on schema bar.qux to role foo",
         "grant create alert on schema bar.qux to role foo",
+        "grant create streamlit on schema bar.qux to role foo",
+        "grant create stage on schema bar.qux to role foo",
         'grant role foo to role "SYSADMIN"',
     }
     result = set(execution_plan(config))

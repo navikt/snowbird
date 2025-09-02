@@ -364,7 +364,7 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
             ).render(role=role, database=database, schema=schema)
             execution_plan.add(grant_role_usage_on_schema_statement)
 
-            create_types = ["table", "view", "dynamic table", "task", "alert"]
+            create_types = ["table", "view", "dynamic table", "task", "alert", "streamlit", "stage"]
             for type in create_types:
                 grant_role_create_on_schema_statement = jinja_env.from_string(
                     grant_role_create_on_schema
