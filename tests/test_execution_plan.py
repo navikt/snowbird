@@ -731,6 +731,8 @@ def test_grant_role_read_on_schema():
         "grant select on all views in schema bar.baz to role foo",
         "grant select on future views in schema bar.baz to role foo",
         'grant role foo to role "SYSADMIN"',
+        "grant select on all dynamic tables in schema bar.baz to role foo",
+        "grant select on future dynamic tables in schema bar.baz to role foo",
     }
     result = set(execution_plan(config))
     print(result)
@@ -754,6 +756,10 @@ def test_grant_role_read_on_multiple_schemas():
         "grant select on all views in schema bar.qux to role foo",
         "grant select on future views in schema bar.qux to role foo",
         'grant role foo to role "SYSADMIN"',
+        "grant select on all dynamic tables in schema bar.baz to role foo",
+        "grant select on future dynamic tables in schema bar.baz to role foo",
+        "grant select on all dynamic tables in schema bar.qux to role foo",
+        "grant select on future dynamic tables in schema bar.qux to role foo",
     }
     result = set(execution_plan(config))
     print(result)

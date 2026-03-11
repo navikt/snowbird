@@ -89,6 +89,12 @@ grant_role_read_on_views_in_schema = """
 grant_role_future_read_on_views_in_schema = """
     grant select on future views in schema {{ database }}.{{ schema }} to role {{ role }}
 """
+grant_role_read_on_dynamic_tables_in_schema = """
+    grant select on all dynamic tables in schema {{ database }}.{{ schema }} to role {{ role }}
+"""
+grant_role_future_read_on_dynamic_tabbles_in_schema = """
+    grant select on future dynamic tables in schema {{ database }}.{{ schema }} to role {{ role }}
+"""
 
 grant_role_to_user = """
     grant role {{ role }} to user "{{ to_user.upper() }}"
@@ -351,6 +357,22 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
                 grant_role_future_read_on_views_in_schema
             ).render(role=role, database=database, schema=schema)
             execution_plan.add(grant_role_future_read_on_views_in_schema_statement)
+
+            grant_role_read_on_dynamic_tables_in_schema_statement = (
+                jinja_env.from_string(
+                    grant_role_read_on_dynamic_tables_in_schema
+                ).render(role=role, database=database, schema=schema)
+            )
+            execution_plan.add(grant_role_read_on_dynamic_tables_in_schema_statement)
+
+            grant_role_future_read_on_dynamic_tables_in_schema_statement = (
+                jinja_env.from_string(
+                    grant_role_future_read_on_dynamic_tabbles_in_schema
+                ).render(role=role, database=database, schema=schema)
+            )
+            execution_plan.add(
+                grant_role_future_read_on_dynamic_tables_in_schema_statement
+            )
 
         for full_schema_path in write_on_schemas:
             database, schema = full_schema_path.split(".")
