@@ -684,6 +684,7 @@ def test_grant_role_write_on_schema():
         "grant usage on schema bar.baz to role foo",
         "grant create task on schema bar.baz to role foo",
         "grant create view on schema bar.baz to role foo",
+        "grant create semantic view on schema bar.baz to role foo",
     }
     result = set(execution_plan(config))
     print(result)
@@ -697,6 +698,8 @@ def test_grant_role_write_on_multiple_schemas():
         "grant create procedure on schema bar.qux to role foo",
         "grant create table on schema bar.baz to role foo",
         "grant create table on schema bar.qux to role foo",
+        "grant create semantic view on schema bar.baz to role foo",
+        "grant create semantic view on schema bar.qux to role foo",
         "grant usage on schema bar.qux to role foo",
         "grant create row access policy on schema bar.qux to role foo",
         "grant create alert on schema bar.qux to role foo",
@@ -733,6 +736,8 @@ def test_grant_role_read_on_schema():
         'grant role foo to role "SYSADMIN"',
         "grant select on all dynamic tables in schema bar.baz to role foo",
         "grant select on future dynamic tables in schema bar.baz to role foo",
+        "grant select on all semantic views in schema bar.baz to role foo",
+        "grant select on future semantic views in schema bar.baz to role foo",
     }
     result = set(execution_plan(config))
     print(result)
@@ -760,6 +765,10 @@ def test_grant_role_read_on_multiple_schemas():
         "grant select on future dynamic tables in schema bar.baz to role foo",
         "grant select on all dynamic tables in schema bar.qux to role foo",
         "grant select on future dynamic tables in schema bar.qux to role foo",
+        "grant select on all semantic views in schema bar.baz to role foo",
+        "grant select on future semantic views in schema bar.baz to role foo",
+        "grant select on all semantic views in schema bar.qux to role foo",
+        "grant select on future semantic views in schema bar.qux to role foo",
     }
     result = set(execution_plan(config))
     print(result)
