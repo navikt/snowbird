@@ -102,3 +102,7 @@ grants:
       - snowbird_test.mart
     to_roles:
       - SNOWBIRD_TEST_TO_ROLE # skrevet i uppercase for å teste at det fungerer
+  - role: snowbird_test_to_role
+    read_on_objects:
+      - table:snowbird_test.mart.specific_table
+      - view:snowbird_test.mart.specific_view
