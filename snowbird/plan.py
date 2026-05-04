@@ -153,8 +153,9 @@ def _parse_object_type(type_input: str) -> tuple[str, str]:
         object_type, object_name = prefix, name
         return SNOWFLAKE_OBJECT_TYPES[object_type], object_name
     else:
+        valid_types = ", ".join(SNOWFLAKE_OBJECT_TYPES.keys())
         raise ValueError(
-            f"Invalid input for object type, type must be one of {SNOWFLAKE_OBJECT_TYPES.keys()}, followed by a colon and the object name (table:my_table)"
+            f"Invalid input for object type, type must be one of {valid_types}, followed by a colon and a fully qualified object name (for example: table:my_database.my_schema.my_table)"
         )
 
 
