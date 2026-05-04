@@ -774,6 +774,84 @@ def test_grant_role_read_on_multiple_schemas():
     print(result)
     assert result == expected
 
+def test_grant_role_read_on_objects():
+    config = {
+        "grants": [
+            {
+                "role": "foo",
+                "read_on_objects": [
+                    "table:bar.baz.my_table",
+                    "view:bar.baz.my_view",
+                ],
+            }
+        ]
+    }
+    result = set(execution_plan(config))
+    # Should grant usage on parent db and schema
+    assert "grant usage on database bar to role foo" in result
+    assert "grant usage on schema bar.baz to role foo" in result
+    # Should grant select on specific objects
+    assert "grant select on table bar.baz.my_table to role foo" in result
+    assert "grant select on view bar.baz.my_view to role foo" in result
+    # Should NOT grant select on all tables in schema (that's read_on_schemas)
+    assert not any("grant select on all tables" in s for s in result)
+    assert not any("grant select on future tables" in s for s in result)
+
+def test_grant_role_read_on_objects_all_types():
+    config = {
+        "grants": [
+            {
+                "role": "foo",
+                "read_on_objects": [
+                    "table:db.sch.t1",
+                    "view:db.sch.v1",
+                    "dynamic_table:db.sch.dt1",
+                    "semantic_view:db.sch.sv1",
+                ],
+            }
+        ]
+    }
+    result = set(execution_plan(config))
+    assert "grant select on table db.sch.t1 to role foo" in result
+    assert "grant select on view db.sch.v1 to role foo" in result
+    assert "grant select on dynamic table db.sch.dt1 to role foo" in result
+    assert "grant select on semantic view db.sch.sv1 to role foo" in result
+
+def test_read_on_objects_invalid_type_prefix_raises_error():
+    config = {
+        "grants": [
+            {
+                "role": "foo",
+                "read_on_objects": ["invalid_type:db.sch.obj"],
+            }
+        ]
+    }
+    with pytest.raises(ValueError, match="Invalid input for object type"):
+        execution_plan(config)
+
+def test_read_on_objects_missing_type_prefix_raises_error():
+    config = {
+        "grants": [
+            {
+                "role": "foo",
+                "read_on_objects": ["db.sch.obj"],
+            }
+        ]
+    }
+    with pytest.raises(ValueError, match="Invalid type_input, must contain exactly one colon between object type and name"):
+        execution_plan(config)
+
+def test_read_on_objects_invalid_path_raises_error():
+    config = {
+        "grants": [
+            {
+                "role": "foo",
+                "read_on_objects": ["table:db.obj"],
+            }
+        ]
+    }
+    with pytest.raises(ValueError, match="Invalid object path db.obj, must be in the format database.schema.object"):
+        execution_plan(config)
 
 def test_grant_role_to_role():
     config = {"grants": [{"role": "foo", "to_roles": ["bar"]}]}

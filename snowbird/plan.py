@@ -1,5 +1,3 @@
-import re
-
 import jinja2
 import yaml
 
@@ -148,7 +146,7 @@ def load_config(path: str) -> dict:
 def _parse_object_type(type_input: str) -> tuple[str, str]:
     if type_input.count(":") != 1:
         raise ValueError(
-            f"Invalid type_input, must contain exactly one colon between object type and name (table:my_table)"
+            f"Invalid type_input, must contain exactly one colon between object type and name"
         )
     prefix, name = type_input.split(":")
     if prefix in SNOWFLAKE_OBJECT_TYPES.keys():
@@ -412,9 +410,7 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
                     grant_role_read_on_semantic_views_in_schema
                 ).render(role=role, database=database, schema=schema)
             )
-            execution_plan.add(
-                grant_role_read_on_semantic_views_in_schema_statement
-                )
+            execution_plan.add(grant_role_read_on_semantic_views_in_schema_statement)
             grant_role_future_read_on_semantic_views_in_schema_statement = (
                 jinja_env.from_string(
                     grant_role_future_read_on_semantic_views_in_schema
@@ -471,10 +467,16 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
                 grant_role_usage_on_schema
             ).render(role=role, database=database, schema=schema)
             execution_plan.add(grant_role_usage_on_schema_statement)
-            
+
             grant_select_on_object_statement = jinja_env.from_string(
                 grant_role_select_on_object
-            ).render(role=role, object_type=object_type, database=database, schema=schema, object_name=name)
+            ).render(
+                role=role,
+                object_type=object_type,
+                database=database,
+                schema=schema,
+                object_name=name,
+            )
             execution_plan.add(grant_select_on_object_statement)
 
         # Grant and revoke roles to users and roles
