@@ -814,7 +814,8 @@ def overview(execution_plan: dict) -> dict:
         s for s in alter_network_policies if s not in create_network_policies
     ]
 
-    grant_selects = [s for s in execution_plan if "grant select on" in s]
+    grant_selects = [s for s in execution_plan if "grant select on" in s and "in schema" in s]
+    grant_select_on_objects = [s for s in execution_plan if "grant select on" in s and "in schema" not in s]
     grant_create = [s for s in execution_plan if "grant create table" in s]
     grant_roles = [s for s in execution_plan if "grant role" in s and "to role" in s]
     grant_users = [s for s in execution_plan if "grant role" in s and "to user" in s]
@@ -839,6 +840,7 @@ def overview(execution_plan: dict) -> dict:
         "create_network_policies": create_network_policies,
         "modify_network_policies": modify_network_policies,
         "grant_selects": grant_selects,
+        "grant_select_on_objects": grant_select_on_objects,
         "grant_create": grant_create,
         "grant_roles": grant_roles,
         "grant_users": grant_users,
