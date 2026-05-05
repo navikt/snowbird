@@ -75,6 +75,7 @@ def plan(config, silent, state, stateless, print_execution_plan):
     modify_warehouses = plan_overview.get("modify_warehouses", [])
     modify_network_policies = plan_overview.get("modify_network_policies", [])
     grant_selects = plan_overview.get("grant_selects", [])
+    grant_select_on_objects = plan_overview.get("grant_select_on_objects", [])
     grant_create = plan_overview.get("grant_create", [])
     grant_roles = plan_overview.get("grant_roles", [])
     grant_users = plan_overview.get("grant_users", [])
@@ -135,11 +136,15 @@ def plan(config, silent, state, stateless, print_execution_plan):
         click.echo("----------------")
         click.echo(
             "Total:".ljust(20)
-            + f"{str(len(grant_selects) + len(grant_create) + len(grant_roles) + len(grant_users)).rjust(2)} grant,   0 revoke\n"
+            + f"{str(len(grant_selects) + len(grant_select_on_objects) + len(grant_create) + len(grant_roles) + len(grant_users)).rjust(2)} grant,   0 revoke\n"
         )
         click.echo(
             "Read on schema:".ljust(20)
             + f"{str(len(grant_selects)).rjust(2)} grant,   0 revoke"
+        )
+        click.echo(
+            "Read on object:".ljust(20)
+            + f"{str(len(grant_select_on_objects)).rjust(2)} grant,   0 revoke"
         )
         click.echo(
             "Write on schema:".ljust(20)

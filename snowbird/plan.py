@@ -95,7 +95,15 @@ grant_role_read_on_dynamic_tables_in_schema = """
 grant_role_future_read_on_dynamic_tabbles_in_schema = """
     grant select on future dynamic tables in schema {{ database }}.{{ schema }} to role {{ role }}
 """
-
+grant_role_read_on_semantic_views_in_schema = """
+    grant select on all semantic views in schema {{ database }}.{{ schema }} to role {{ role }}
+"""
+grant_role_future_read_on_semantic_views_in_schema = """
+    grant select on future semantic views in schema {{ database }}.{{ schema }} to role {{ role }}
+"""
+grant_role_select_on_object = """
+    grant select on {{ object_type }} {{ database }}.{{ schema }}.{{ object_name }} to role {{ role }}
+"""
 grant_role_to_user = """
     grant role {{ role }} to user "{{ to_user.upper() }}"
 """
@@ -115,6 +123,13 @@ DEFAULT_TRANSIENT_RETENTION_TIME = "1"
 DEFAULT_TRANSIENT = False
 DEFAULT_WAREHOUSE_SIZE = "x-small"
 
+SNOWFLAKE_OBJECT_TYPES = {
+    "table": "table",
+    "view": "view",
+    "dynamic_table": "dynamic table",
+    "semantic_view": "semantic view",
+}
+
 jinja_env = jinja2.Environment()
 
 
@@ -126,6 +141,22 @@ def load_config(path: str) -> dict:
     with open(path) as file:
         file_content = file.read().lower()
         return yaml.safe_load(file_content)
+
+
+def _parse_object_type(type_input: str) -> tuple[str, str]:
+    if type_input.count(":") != 1:
+        raise ValueError(
+            f"Invalid type_input, must contain exactly one colon between object type and name"
+        )
+    prefix, name = type_input.split(":")
+    if prefix in SNOWFLAKE_OBJECT_TYPES.keys():
+        object_type, object_name = prefix, name
+        return SNOWFLAKE_OBJECT_TYPES[object_type], object_name
+    else:
+        valid_types = ", ".join(SNOWFLAKE_OBJECT_TYPES.keys())
+        raise ValueError(
+            f"Invalid input for object type, type must be one of {valid_types}, followed by a colon and a fully qualified object name (for example: table:my_database.my_schema.my_table)"
+        )
 
 
 def _create_databases_execution_plan(databases: list[dict], state: dict) -> list[str]:
@@ -317,6 +348,7 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
         warehouses = grant.get("warehouses", [])
         read_on_schemas = grant.get("read_on_schemas", [])
         write_on_schemas = grant.get("write_on_schemas", [])
+        read_on_objects = grant.get("read_on_objects", [])
         to_roles = grant.get("to_roles", [])
         to_users = grant.get("to_users", [])
 
@@ -374,6 +406,21 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
                 grant_role_future_read_on_dynamic_tables_in_schema_statement
             )
 
+            grant_role_read_on_semantic_views_in_schema_statement = (
+                jinja_env.from_string(
+                    grant_role_read_on_semantic_views_in_schema
+                ).render(role=role, database=database, schema=schema)
+            )
+            execution_plan.add(grant_role_read_on_semantic_views_in_schema_statement)
+            grant_role_future_read_on_semantic_views_in_schema_statement = (
+                jinja_env.from_string(
+                    grant_role_future_read_on_semantic_views_in_schema
+                ).render(role=role, database=database, schema=schema)
+            )
+            execution_plan.add(
+                grant_role_future_read_on_semantic_views_in_schema_statement
+            )
+
         for full_schema_path in write_on_schemas:
             database, schema = full_schema_path.split(".")
             grant_role_usage_on_database_statement = jinja_env.from_string(
@@ -390,6 +437,7 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
                 "table",
                 "view",
                 "dynamic table",
+                "semantic view",
                 "task",
                 "alert",
                 "masking policy",
@@ -401,6 +449,36 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
                     grant_role_create_on_schema
                 ).render(type=type, role=role, database=database, schema=schema)
                 execution_plan.add(grant_role_create_on_schema_statement)
+
+        for object_entry in read_on_objects:
+            object_type, object_name = _parse_object_type(object_entry)
+            parts = object_name.split(".")
+            if len(parts) != 3:
+                raise ValueError(
+                    f"Invalid object path {object_name}, must be in the format database.schema.object"
+                )
+            database, schema, name = parts
+
+            grant_role_usage_on_database_statement = jinja_env.from_string(
+                grant_role_usage_on_database
+            ).render(role=role, database=database)
+            execution_plan.add(grant_role_usage_on_database_statement)
+
+            grant_role_usage_on_schema_statement = jinja_env.from_string(
+                grant_role_usage_on_schema
+            ).render(role=role, database=database, schema=schema)
+            execution_plan.add(grant_role_usage_on_schema_statement)
+
+            grant_select_on_object_statement = jinja_env.from_string(
+                grant_role_select_on_object
+            ).render(
+                role=role,
+                object_type=object_type,
+                database=database,
+                schema=schema,
+                object_name=name,
+            )
+            execution_plan.add(grant_select_on_object_statement)
 
         # Grant and revoke roles to users and roles
         grant_of_role_state = state.get("of_roles", {}).get(role)
@@ -737,7 +815,8 @@ def overview(execution_plan: dict) -> dict:
         s for s in alter_network_policies if s not in create_network_policies
     ]
 
-    grant_selects = [s for s in execution_plan if "grant select on" in s]
+    grant_selects = [s for s in execution_plan if "grant select on" in s and "in schema" in s]
+    grant_select_on_objects = [s for s in execution_plan if "grant select on" in s and "in schema" not in s]
     grant_create = [s for s in execution_plan if "grant create table" in s]
     grant_roles = [s for s in execution_plan if "grant role" in s and "to role" in s]
     grant_users = [s for s in execution_plan if "grant role" in s and "to user" in s]
@@ -762,6 +841,7 @@ def overview(execution_plan: dict) -> dict:
         "create_network_policies": create_network_policies,
         "modify_network_policies": modify_network_policies,
         "grant_selects": grant_selects,
+        "grant_select_on_objects": grant_select_on_objects,
         "grant_create": grant_create,
         "grant_roles": grant_roles,
         "grant_users": grant_users,
