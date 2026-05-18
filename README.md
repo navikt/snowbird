@@ -29,7 +29,7 @@ Legg følgende til i `.vscode/settings.json`:
 ```json
 {
     "yaml.schemas": {
-        "./snowflake.schema.json": "**/snowflake.yml"
+        "https://raw.githubusercontent.com/navikt/snowbird/main/snowflake.schema.json": "**/snowflake.yml"
     }
 }
 ```
