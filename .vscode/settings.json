@@ -7,9 +7,12 @@
         "editor.codeActionsOnSave": {
             "source.organizeImports": "explicit"
         },
-      },
+    },
     "isort.args": [
         "--profile",
         "black"
     ],
+    "yaml.schemas": {
+        "./snowflake.schema.json": "**/snowflake.yml"
+    }
 }

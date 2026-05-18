@@ -1,0 +1,250 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Snowbird Snowflake Configuration",
+  "description": "Schema for snowflake.yml configuration files used by Snowbird to manage Snowflake infrastructure.",
+  "type": "object",
+  "required": ["id"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for this configuration."
+    },
+    "databases": {
+      "type": "array",
+      "description": "List of Snowflake databases to manage.",
+      "items": {
+        "type": "object",
+        "required": ["name", "schemas"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the database."
+          },
+          "transient": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether the database is transient. Transient databases have a max data retention of 1 day."
+          },
+          "data_retention_time_in_days": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Time Travel data retention period in days. Default is 7 for non-transient databases, 1 for transient."
+          },
+          "schemas": {
+            "type": "array",
+            "description": "List of schemas within this database.",
+            "items": {
+              "type": "object",
+              "required": ["name"],
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Name of the schema."
+                },
+                "transient": {
+                  "type": "boolean",
+                  "description": "Whether the schema is transient. Inherits from parent database if not specified."
+                },
+                "data_retention_time_in_days": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Time Travel data retention period in days. Inherits from parent database if not specified."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "warehouses": {
+      "type": "array",
+      "description": "List of Snowflake warehouses to manage.",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the warehouse."
+          },
+          "size": {
+            "type": "string",
+            "description": "Size of the warehouse. Default is 'x-small'.",
+            "default": "x-small",
+            "enum": [
+              "x-small",
+              "small",
+              "medium",
+              "large",
+              "x-large",
+              "2x-large",
+              "3x-large",
+              "4x-large",
+              "5x-large",
+              "6x-large"
+            ]
+          }
+        }
+      }
+    },
+    "roles": {
+      "type": "array",
+      "description": "List of Snowflake roles to manage.",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the role."
+          }
+        }
+      }
+    },
+    "users": {
+      "type": "array",
+      "description": "List of Snowflake users to manage.",
+      "items": {
+        "type": "object",
+        "required": ["name", "type", "network_policy"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the user."
+          },
+          "type": {
+            "type": "string",
+            "description": "Type of user account.",
+            "enum": ["service", "legacy_service"]
+          },
+          "network_policy": {
+            "type": "string",
+            "description": "Name of the network policy to assign to this user. Must reference a network policy defined in this configuration or an existing one in Snowflake."
+          }
+        }
+      }
+    },
+    "network_policies": {
+      "type": "array",
+      "description": "List of Snowflake network policies to manage.",
+      "items": {
+        "type": "object",
+        "required": ["name", "network_rules"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the network policy."
+          },
+          "description": {
+            "type": "string",
+            "description": "Description/comment for the network policy."
+          },
+          "network_rules": {
+            "type": "object",
+            "description": "Network rules for this policy. At least one of 'allowed' or 'blocked' must be specified.",
+            "additionalProperties": false,
+            "properties": {
+              "allowed": {
+                "type": "array",
+                "description": "List of allowed network rules. References fully qualified network rule names (e.g., 'database.schema.rule_name').",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "blocked": {
+                "type": "array",
+                "description": "List of blocked network rules. References fully qualified network rule names (e.g., 'database.schema.rule_name').",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "grants": {
+      "type": "array",
+      "description": "List of grant configurations that define permissions for roles.",
+      "items": {
+        "type": "object",
+        "required": ["role"],
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "The role to grant permissions to."
+          },
+          "warehouses": {
+            "type": "array",
+            "description": "Warehouses to grant USAGE on to this role.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_on_schemas": {
+            "type": "array",
+            "description": "Schemas to grant SELECT (read) access on. Grants select on all current and future tables, views, dynamic tables, and semantic views in the schema. Format: 'database.schema'.",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_]+\\.[a-zA-Z0-9_]+$"
+            }
+          },
+          "write_on_schemas": {
+            "type": "array",
+            "description": "Schemas to grant CREATE access on. Grants ability to create tables, views, dynamic tables, semantic views, tasks, alerts, masking policies, row access policies, and procedures. Format: 'database.schema'.",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_]+\\.[a-zA-Z0-9_]+$"
+            }
+          },
+          "usage_on_schemas": {
+            "type": "array",
+            "description": "Schemas to grant USAGE access on (without read or write). Format: 'database.schema'.",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_]+\\.[a-zA-Z0-9_]+$"
+            }
+          },
+          "read_on_objects": {
+            "type": "array",
+            "description": "Specific objects to grant SELECT access on. Format: 'type:database.schema.object_name'. Supported types: table, view, dynamic_table, semantic_view.",
+            "items": {
+              "type": "string",
+              "pattern": "^(table|view|dynamic_table|semantic_view):[a-zA-Z0-9_]+\\.[a-zA-Z0-9_]+\\.[a-zA-Z0-9_]+$"
+            }
+          },
+          "read_on_tables": {
+            "type": "array",
+            "description": "Specific tables to grant SELECT access on. Format: 'database.schema.table_name'.",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_]+\\.[a-zA-Z0-9_]+\\.[a-zA-Z0-9_]+$"
+            }
+          },
+          "to_roles": {
+            "type": "array",
+            "description": "Roles that this role should be granted to. Note: 'sysadmin' is automatically added if not present.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "to_users": {
+            "type": "array",
+            "description": "Users that this role should be granted to. Can be user names or UUIDs (for Entra ID users).",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}
