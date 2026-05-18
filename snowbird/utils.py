@@ -25,7 +25,6 @@ def spinner(title: str):
         elapsed=False,
         stats=False,
         monitor=False,
-        refresh_secs=0.05,
     )
 
 
