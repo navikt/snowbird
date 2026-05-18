@@ -3,7 +3,9 @@
   "title": "Snowbird Snowflake Configuration",
   "description": "Schema for snowflake.yml configuration files used by Snowbird to manage Snowflake infrastructure.",
   "type": "object",
-  "required": ["id"],
+  "required": [
+    "id"
+  ],
   "additionalProperties": false,
   "properties": {
     "id": {
@@ -15,7 +17,10 @@
       "description": "List of Snowflake databases to manage.",
       "items": {
         "type": "object",
-        "required": ["name", "schemas"],
+        "required": [
+          "name",
+          "schemas"
+        ],
         "additionalProperties": false,
         "properties": {
           "name": {
@@ -37,7 +42,9 @@
             "description": "List of schemas within this database.",
             "items": {
               "type": "object",
-              "required": ["name"],
+              "required": [
+                "name"
+              ],
               "additionalProperties": false,
               "properties": {
                 "name": {
@@ -64,7 +71,9 @@
       "description": "List of Snowflake warehouses to manage.",
       "items": {
         "type": "object",
-        "required": ["name"],
+        "required": [
+          "name"
+        ],
         "additionalProperties": false,
         "properties": {
           "name": {
@@ -96,7 +105,9 @@
       "description": "List of Snowflake roles to manage.",
       "items": {
         "type": "object",
-        "required": ["name"],
+        "required": [
+          "name"
+        ],
         "additionalProperties": false,
         "properties": {
           "name": {
@@ -111,7 +122,11 @@
       "description": "List of Snowflake users to manage.",
       "items": {
         "type": "object",
-        "required": ["name", "type", "network_policy"],
+        "required": [
+          "name",
+          "type",
+          "network_policy"
+        ],
         "additionalProperties": false,
         "properties": {
           "name": {
@@ -121,7 +136,10 @@
           "type": {
             "type": "string",
             "description": "Type of user account.",
-            "enum": ["service", "legacy_service"]
+            "enum": [
+              "service",
+              "legacy_service"
+            ]
           },
           "network_policy": {
             "type": "string",
@@ -135,7 +153,10 @@
       "description": "List of Snowflake network policies to manage.",
       "items": {
         "type": "object",
-        "required": ["name", "network_rules"],
+        "required": [
+          "name",
+          "network_rules"
+        ],
         "additionalProperties": false,
         "properties": {
           "name": {
@@ -175,7 +196,9 @@
       "description": "List of grant configurations that define permissions for roles.",
       "items": {
         "type": "object",
-        "required": ["role"],
+        "required": [
+          "role"
+        ],
         "additionalProperties": false,
         "properties": {
           "role": {
@@ -205,28 +228,12 @@
               "pattern": "^[a-zA-Z0-9_]+\\.[a-zA-Z0-9_]+$"
             }
           },
-          "usage_on_schemas": {
-            "type": "array",
-            "description": "Schemas to grant USAGE access on (without read or write). Format: 'database.schema'.",
-            "items": {
-              "type": "string",
-              "pattern": "^[a-zA-Z0-9_]+\\.[a-zA-Z0-9_]+$"
-            }
-          },
           "read_on_objects": {
             "type": "array",
             "description": "Specific objects to grant SELECT access on. Format: 'type:database.schema.object_name'. Supported types: table, view, dynamic_table, semantic_view.",
             "items": {
               "type": "string",
               "pattern": "^(table|view|dynamic_table|semantic_view):[a-zA-Z0-9_]+\\.[a-zA-Z0-9_]+\\.[a-zA-Z0-9_]+$"
-            }
-          },
-          "read_on_tables": {
-            "type": "array",
-            "description": "Specific tables to grant SELECT access on. Format: 'database.schema.table_name'.",
-            "items": {
-              "type": "string",
-              "pattern": "^[a-zA-Z0-9_]+\\.[a-zA-Z0-9_]+\\.[a-zA-Z0-9_]+$"
             }
           },
           "to_roles": {
