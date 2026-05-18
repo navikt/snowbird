@@ -13,6 +13,7 @@ install:
 .PHONY: docs ## generate documentation
 docs:
 	${PY} generate_doc.py
+	uvx jsonschema-markdown snowflake.schema.json > REFERENCES.md
 
 .PHONY: release ## publish new release
 release:
