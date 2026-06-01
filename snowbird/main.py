@@ -80,9 +80,16 @@ def plan(config, silent, state, stateless, print_execution_plan):
     grant_roles = plan_overview.get("grant_roles", [])
     grant_users = plan_overview.get("grant_users", [])
     grant_warehouses = plan_overview.get("grant_warehouses", [])
+    grant_databases = plan_overview.get("grant_databases", [])
+    grant_schemas = plan_overview.get("grant_schemas", [])
     revoke_roles = plan_overview.get("revoke_roles", [])
     revoke_users = plan_overview.get("revoke_users", [])
     revoke_warehouses = plan_overview.get("revoke_warehouses", [])
+    revoke_databases = plan_overview.get("revoke_databases", [])
+    revoke_schemas = plan_overview.get("revoke_schemas", [])
+    revoke_selects = plan_overview.get("revoke_selects", [])
+    revoke_select_on_objects = plan_overview.get("revoke_select_on_objects", [])
+    revoke_create = plan_overview.get("revoke_create", [])
 
     if silent == False:
         click.echo("\nCreate or modify:")
@@ -136,8 +143,8 @@ def plan(config, silent, state, stateless, print_execution_plan):
 
         click.echo(f"Grant or revoke:")
         click.echo("----------------")
-        total_grants = len(grant_selects) + len(grant_select_on_objects) + len(grant_create) + len(grant_roles) + len(grant_users) + len(grant_warehouses)
-        total_revokes = len(revoke_roles) + len(revoke_users) + len(revoke_warehouses)
+        total_grants = len(grant_selects) + len(grant_select_on_objects) + len(grant_create) + len(grant_roles) + len(grant_users) + len(grant_warehouses) + len(grant_databases) + len(grant_schemas)
+        total_revokes = len(revoke_roles) + len(revoke_users) + len(revoke_warehouses) + len(revoke_databases) + len(revoke_schemas) + len(revoke_selects) + len(revoke_select_on_objects) + len(revoke_create)
         click.echo(
             "Total:".ljust(20)
             + f"{str(total_grants).rjust(2)} grant, {str(total_revokes).rjust(3)} revoke\n"
@@ -147,16 +154,24 @@ def plan(config, silent, state, stateless, print_execution_plan):
             + f"{str(len(grant_warehouses)).rjust(2)} grant, {str(len(revoke_warehouses)).rjust(3)} revoke"
         )
         click.echo(
+            "Databases:".ljust(20)
+            + f"{str(len(grant_databases)).rjust(2)} grant, {str(len(revoke_databases)).rjust(3)} revoke"
+        )
+        click.echo(
+            "Schemas:".ljust(20)
+            + f"{str(len(grant_schemas)).rjust(2)} grant, {str(len(revoke_schemas)).rjust(3)} revoke"
+        )
+        click.echo(
             "Read on schema:".ljust(20)
-            + f"{str(len(grant_selects)).rjust(2)} grant,   0 revoke"
+            + f"{str(len(grant_selects)).rjust(2)} grant, {str(len(revoke_selects)).rjust(3)} revoke"
         )
         click.echo(
             "Read on object:".ljust(20)
-            + f"{str(len(grant_select_on_objects)).rjust(2)} grant,   0 revoke"
+            + f"{str(len(grant_select_on_objects)).rjust(2)} grant, {str(len(revoke_select_on_objects)).rjust(3)} revoke"
         )
         click.echo(
             "Write on schema:".ljust(20)
-            + f"{str(len(grant_create)).rjust(2)} grant,   0 revoke"
+            + f"{str(len(grant_create)).rjust(2)} grant, {str(len(revoke_create)).rjust(3)} revoke"
         )
         click.echo(
             "Role to role:".ljust(20)
