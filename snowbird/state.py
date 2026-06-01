@@ -18,6 +18,24 @@ def _get_role_grants(roles: list[dict], cursor: SnowflakeCursor) -> dict:
     return grants
 
 
+def _get_warehouse_grants(
+    grants_config: list[dict], cursor: SnowflakeCursor
+) -> dict:
+    managed_warehouses: set[str] = set()
+    for grant in grants_config:
+        for wh in grant.get("warehouses", []):
+            managed_warehouses.add(wh.lower())
+
+    warehouse_grants: dict = {}
+    for warehouse in managed_warehouses:
+        try:
+            cursor.execute(f"show grants on warehouse {warehouse}")
+            warehouse_grants[warehouse] = cursor.fetchall()
+        except snowflake.connector.errors.ProgrammingError:
+            pass
+    return warehouse_grants
+
+
 def _get_users_state(users: list[dict], cursor: SnowflakeCursor) -> list[dict]:
 
     state = []
@@ -77,6 +95,7 @@ def current_state(config: dict) -> dict:
     roles_config = config.get("roles", [])
     users_config = config.get("users", [])
     network_policies_config = config.get("network_policies", [])
+    grants_config = config.get("grants", [])
 
     with snowflake_cursor() as cursor:
         databases = cursor.execute("show databases").fetchall()
@@ -85,6 +104,7 @@ def current_state(config: dict) -> dict:
         users = _get_users_state(users_config, cursor)
         roles = cursor.execute("show roles").fetchall()
         grants_of_roles = _get_role_grants(roles_config, cursor)
+        warehouse_grants = _get_warehouse_grants(grants_config, cursor)
         network_policies = _get_network_policies(network_policies_config, cursor)
     return {
         "databases": databases,
@@ -92,6 +112,9 @@ def current_state(config: dict) -> dict:
         "schemas": schemas,
         "users": users,
         "roles": roles,
-        "grants": {"of_roles": grants_of_roles},
+        "grants": {
+            "of_roles": grants_of_roles,
+            "on_warehouses": warehouse_grants,
+        },
         "network_policies": network_policies,
     }

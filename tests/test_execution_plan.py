@@ -1004,3 +1004,157 @@ def test_switching_executer_role():
     result = execution_plan(config)
     print(result)
     assert result == expected
+
+
+def test_grant_warehouse_skipped_when_already_exists():
+    config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
+    state = {
+        "grants": {
+            "on_warehouses": {
+                "bar": [
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                ]
+            }
+        },
+    }
+    expected = {
+        "use role useradmin",
+        'grant role foo to role "SYSADMIN"',
+    }
+    result = set(execution_plan(config=config, state=state))
+    print(result)
+    assert result == expected
+
+
+def test_grant_warehouse_when_not_in_state():
+    config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
+    state = {
+        "grants": {
+            "on_warehouses": {
+                "bar": []
+            }
+        },
+    }
+    expected = {
+        "use role useradmin",
+        "grant usage on warehouse bar to role foo",
+        'grant role foo to role "SYSADMIN"',
+    }
+    result = set(execution_plan(config=config, state=state))
+    print(result)
+    assert result == expected
+
+
+def test_revoke_warehouse_from_unlisted_role():
+    config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
+    state = {
+        "grants": {
+            "on_warehouses": {
+                "bar": [
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                    {"privilege": "USAGE", "grantee_name": "ROGUE_ROLE"},
+                ]
+            }
+        },
+    }
+    expected = {
+        "use role useradmin",
+        'grant role foo to role "SYSADMIN"',
+        "revoke usage on warehouse bar from role rogue_role",
+    }
+    result = set(execution_plan(config=config, state=state))
+    print(result)
+    assert result == expected
+
+
+def test_revoke_warehouse_when_not_in_config():
+    config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
+    state = {
+        "grants": {
+            "on_warehouses": {
+                "bar": [
+                    {"privilege": "USAGE", "grantee_name": "BAZ"},
+                ]
+            }
+        },
+    }
+    expected = {
+        "use role useradmin",
+        "grant usage on warehouse bar to role foo",
+        "revoke usage on warehouse bar from role baz",
+        'grant role foo to role "SYSADMIN"',
+    }
+    result = set(execution_plan(config=config, state=state))
+    print(result)
+    assert result == expected
+
+
+def test_grant_and_revoke_warehouse_mixed():
+    config = {
+        "grants": [
+            {"role": "foo", "warehouses": ["wh1", "wh2"]},
+        ]
+    }
+    state = {
+        "grants": {
+            "on_warehouses": {
+                "wh1": [
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                    {"privilege": "USAGE", "grantee_name": "OLD_ROLE"},
+                ],
+                "wh2": [],
+            }
+        },
+    }
+    expected = {
+        "use role useradmin",
+        "grant usage on warehouse wh2 to role foo",
+        "revoke usage on warehouse wh1 from role old_role",
+        'grant role foo to role "SYSADMIN"',
+    }
+    result = set(execution_plan(config=config, state=state))
+    print(result)
+    assert result == expected
+
+
+def test_warehouse_grants_aggregated_across_entries():
+    config = {
+        "grants": [
+            {"role": "foo", "warehouses": ["wh1"]},
+            {"role": "bar", "warehouses": ["wh1"]},
+        ]
+    }
+    state = {
+        "grants": {
+            "on_warehouses": {
+                "wh1": [
+                    {"privilege": "USAGE", "grantee_name": "OLD_ROLE"},
+                ]
+            }
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant usage on warehouse wh1 to role foo" in result
+    assert "grant usage on warehouse wh1 to role bar" in result
+    assert "revoke usage on warehouse wh1 from role old_role" in result
+
+
+def test_warehouse_ownership_not_revoked():
+    config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
+    state = {
+        "grants": {
+            "on_warehouses": {
+                "bar": [
+                    {"privilege": "OWNERSHIP", "grantee_name": "SYSADMIN"},
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                ]
+            }
+        },
+    }
+    expected = {
+        "use role useradmin",
+        'grant role foo to role "SYSADMIN"',
+    }
+    result = set(execution_plan(config=config, state=state))
+    print(result)
+    assert result == expected

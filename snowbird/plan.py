@@ -68,6 +68,9 @@ alter_network_policy = """
 grant_role_usage_on_warehouse = """
     grant usage on warehouse {{ warehouse }} to role {{ role }}
 """
+revoke_role_usage_on_warehouse = """
+    revoke usage on warehouse {{ warehouse }} from role {{ role }}
+"""
 grant_role_usage_on_database = """
     grant usage on database {{ database }} to role {{ role }}
 """
@@ -343,20 +346,53 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
     if len(grants) == 0:
         return []
     execution_plan = set()
+
+    # Aggregate desired warehouse grants: {warehouse: set(roles)}
+    desired_warehouse_roles: dict[str, set[str]] = {}
     for grant in grants:
         role = grant["role"]
-        warehouses = grant.get("warehouses", [])
+        for warehouse in grant.get("warehouses", []):
+            if warehouse not in desired_warehouse_roles:
+                desired_warehouse_roles[warehouse] = set()
+            desired_warehouse_roles[warehouse].add(role)
+
+    # Diff warehouse grants against state
+    on_warehouses_state = state.get("on_warehouses", {})
+    for warehouse, desired_roles in desired_warehouse_roles.items():
+        warehouse_grant_state = on_warehouses_state.get(warehouse)
+        if warehouse_grant_state is None:
+            # No state — grant unconditionally
+            for role in desired_roles:
+                stmt = jinja_env.from_string(grant_role_usage_on_warehouse).render(
+                    role=role, warehouse=warehouse
+                )
+                execution_plan.add(stmt)
+        else:
+            actual_roles = {
+                g["grantee_name"].lower()
+                for g in warehouse_grant_state
+                if g["privilege"].lower() == "usage"
+            }
+            # Grant missing
+            for role in desired_roles - actual_roles:
+                stmt = jinja_env.from_string(grant_role_usage_on_warehouse).render(
+                    role=role, warehouse=warehouse
+                )
+                execution_plan.add(stmt)
+            # Revoke extra
+            for role in actual_roles - desired_roles:
+                stmt = jinja_env.from_string(revoke_role_usage_on_warehouse).render(
+                    role=role, warehouse=warehouse
+                )
+                execution_plan.add(stmt)
+
+    for grant in grants:
+        role = grant["role"]
         read_on_schemas = grant.get("read_on_schemas", [])
         write_on_schemas = grant.get("write_on_schemas", [])
         read_on_objects = grant.get("read_on_objects", [])
         to_roles = grant.get("to_roles", [])
         to_users = grant.get("to_users", [])
-
-        for warehouse in warehouses:
-            grant_role_usage_on_warehouse_statement = jinja_env.from_string(
-                grant_role_usage_on_warehouse
-            ).render(role=role, warehouse=warehouse)
-            execution_plan.add(grant_role_usage_on_warehouse_statement)
 
         for full_schema_path in read_on_schemas:
             database, schema = full_schema_path.split(".")
@@ -820,6 +856,12 @@ def overview(execution_plan: dict) -> dict:
     grant_create = [s for s in execution_plan if "grant create table" in s]
     grant_roles = [s for s in execution_plan if "grant role" in s and "to role" in s]
     grant_users = [s for s in execution_plan if "grant role" in s and "to user" in s]
+    grant_warehouses = [
+        s for s in execution_plan if "grant usage on warehouse" in s
+    ]
+    revoke_warehouses = [
+        s for s in execution_plan if "revoke usage on warehouse" in s
+    ]
 
     revoke_roles = [
         s for s in execution_plan if "revoke role" in s and "from role" in s
@@ -845,6 +887,8 @@ def overview(execution_plan: dict) -> dict:
         "grant_create": grant_create,
         "grant_roles": grant_roles,
         "grant_users": grant_users,
+        "grant_warehouses": grant_warehouses,
+        "revoke_warehouses": revoke_warehouses,
         "revoke_roles": revoke_roles,
         "revoke_users": revoke_users,
     }
