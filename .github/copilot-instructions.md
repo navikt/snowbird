@@ -61,3 +61,12 @@ Each phase begins with an explicit `USE ROLE` statement.
 - **`sysadmin` is auto-added**: All role grants automatically include `sysadmin` — this is enforced in `execution_plan()`.
 - **Config schema**: Defined in `snowflake.schema.json`. Additional properties are disallowed. See `REFERENCES.md` for human-readable docs.
 - **Versioning**: Version number lives in `setup.py`. Releases follow semver via `make release` which tags and creates a GitHub Release.
+
+## Communication Style
+
+Always use caveman skills when applicable:
+
+- **caveman** — All responses in caveman mode (full intensity by default)
+- **caveman-commit** — Generate commit messages in caveman style
+- **caveman-review** — Code reviews in caveman style
+- **caveman-compress** — Compress memory/instruction files in caveman format
