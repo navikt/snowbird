@@ -640,12 +640,16 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
             revoke_role_read_on_semantic_views_in_schema,
         ),
     ]
+    # Track (schema_path, role) pairs that need new future grants — these also
+    # need ALL grants to bootstrap existing objects in that schema.
+    schemas_needing_bootstrap: set[tuple[str, str]] = set()
     for schema_path, desired_roles in desired_future_read.items():
         database, schema = schema_path.split(".")
         future_schema_state = future_in_schemas_state.get(schema_path)
         for grant_on_type, grant_tmpl, revoke_future_tmpl, revoke_all_tmpl in future_grant_types:
             if future_schema_state is None:
                 for role in desired_roles:
+                    schemas_needing_bootstrap.add((schema_path, role))
                     execution_plan.add(
                         jinja_env.from_string(grant_tmpl).render(
                             role=role, database=database, schema=schema
@@ -656,9 +660,10 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
                     g["grantee_name"].lower()
                     for g in future_schema_state
                     if g["privilege"].lower() == "select"
-                    and g["grant_on"].lower() == grant_on_type
+                    and g["grant_on"].lower().replace("_", " ") == grant_on_type
                 }
                 for role in desired_roles - actual_roles:
+                    schemas_needing_bootstrap.add((schema_path, role))
                     execution_plan.add(
                         jinja_env.from_string(grant_tmpl).render(
                             role=role, database=database, schema=schema
@@ -775,8 +780,10 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
         to_roles = grant.get("to_roles", [])
         to_users = grant.get("to_users", [])
 
-        # Always re-emit ALL grants (idempotent, covers existing objects)
+        # Emit ALL grants only when bootstrapping (future grants are being newly added)
         for full_schema_path in read_on_schemas:
+            if (full_schema_path, role) not in schemas_needing_bootstrap:
+                continue
             database, schema = full_schema_path.split(".")
             execution_plan.add(
                 jinja_env.from_string(grant_role_read_on_tables_in_schema).render(

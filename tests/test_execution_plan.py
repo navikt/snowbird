@@ -1409,13 +1409,21 @@ def test_future_read_revoked_from_unlisted_role():
     assert not any("revoke" in s and "foo" in s for s in result)
 
 
-def test_all_grants_always_reemitted_for_read_on_schemas():
-    """ALL grants are always re-emitted (idempotent), even when state exists."""
+def test_all_grants_skipped_when_future_grants_already_exist():
+    """ALL grants are skipped when all future grants already exist in state."""
     config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
     state = {
         "grants": {
-            "on_databases": {"db1": []},
-            "on_schemas": {"db1.sch1": []},
+            "on_databases": {
+                "db1": [
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                ]
+            },
+            "on_schemas": {
+                "db1.sch1": [
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                ]
+            },
             "future_in_schemas": {
                 "db1.sch1": [
                     {"privilege": "SELECT", "grant_on": "TABLE", "grantee_name": "FOO"},
@@ -1427,7 +1435,52 @@ def test_all_grants_always_reemitted_for_read_on_schemas():
         },
     }
     result = set(execution_plan(config=config, state=state))
-    # ALL grants should always be emitted
+    # ALL grants should NOT be emitted when future grants are already in place
+    assert "grant select on all tables in schema db1.sch1 to role foo" not in result
+    assert "grant select on all views in schema db1.sch1 to role foo" not in result
+    assert "grant select on all dynamic tables in schema db1.sch1 to role foo" not in result
+    assert "grant select on all semantic views in schema db1.sch1 to role foo" not in result
+
+
+def test_all_grants_skipped_with_underscored_grant_on():
+    """Snowflake returns DYNAMIC_TABLE/SEMANTIC_VIEW with underscores — must still match."""
+    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {
+                "db1": [{"privilege": "USAGE", "grantee_name": "FOO"}]
+            },
+            "on_schemas": {
+                "db1.sch1": [{"privilege": "USAGE", "grantee_name": "FOO"}]
+            },
+            "future_in_schemas": {
+                "db1.sch1": [
+                    {"privilege": "SELECT", "grant_on": "TABLE", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "VIEW", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "DYNAMIC_TABLE", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "SEMANTIC_VIEW", "grantee_name": "FOO"},
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant select on future dynamic tables in schema db1.sch1 to role foo" not in result
+    assert "grant select on future semantic views in schema db1.sch1 to role foo" not in result
+    assert "grant select on all dynamic tables in schema db1.sch1 to role foo" not in result
+    assert "grant select on all semantic views in schema db1.sch1 to role foo" not in result
+
+
+def test_all_grants_emitted_when_future_grants_missing():
+    """ALL grants are emitted when future grants are being newly added."""
+    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {"db1.sch1": []},
+            "future_in_schemas": {"db1.sch1": []},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
     assert "grant select on all tables in schema db1.sch1 to role foo" in result
     assert "grant select on all views in schema db1.sch1 to role foo" in result
     assert "grant select on all dynamic tables in schema db1.sch1 to role foo" in result
