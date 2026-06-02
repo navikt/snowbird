@@ -1004,3 +1004,883 @@ def test_switching_executer_role():
     result = execution_plan(config)
     print(result)
     assert result == expected
+
+
+def test_grant_warehouse_skipped_when_already_exists():
+    config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
+    state = {
+        "grants": {
+            "on_warehouses": {
+                "bar": [
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                ]
+            }
+        },
+    }
+    expected = {
+        "use role useradmin",
+        'grant role foo to role "SYSADMIN"',
+    }
+    result = set(execution_plan(config=config, state=state))
+    print(result)
+    assert result == expected
+
+
+def test_grant_warehouse_when_not_in_state():
+    config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
+    state = {
+        "grants": {
+            "on_warehouses": {
+                "bar": []
+            }
+        },
+    }
+    expected = {
+        "use role useradmin",
+        "grant usage on warehouse bar to role foo",
+        'grant role foo to role "SYSADMIN"',
+    }
+    result = set(execution_plan(config=config, state=state))
+    print(result)
+    assert result == expected
+
+
+def test_revoke_warehouse_from_unlisted_role():
+    config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
+    state = {
+        "grants": {
+            "on_warehouses": {
+                "bar": [
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                    {"privilege": "USAGE", "grantee_name": "ROGUE_ROLE"},
+                ]
+            }
+        },
+    }
+    expected = {
+        "use role useradmin",
+        'grant role foo to role "SYSADMIN"',
+        "revoke usage on warehouse bar from role rogue_role",
+    }
+    result = set(execution_plan(config=config, state=state))
+    print(result)
+    assert result == expected
+
+
+def test_revoke_warehouse_when_not_in_config():
+    config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
+    state = {
+        "grants": {
+            "on_warehouses": {
+                "bar": [
+                    {"privilege": "USAGE", "grantee_name": "BAZ"},
+                ]
+            }
+        },
+    }
+    expected = {
+        "use role useradmin",
+        "grant usage on warehouse bar to role foo",
+        "revoke usage on warehouse bar from role baz",
+        'grant role foo to role "SYSADMIN"',
+    }
+    result = set(execution_plan(config=config, state=state))
+    print(result)
+    assert result == expected
+
+
+def test_grant_and_revoke_warehouse_mixed():
+    config = {
+        "grants": [
+            {"role": "foo", "warehouses": ["wh1", "wh2"]},
+        ]
+    }
+    state = {
+        "grants": {
+            "on_warehouses": {
+                "wh1": [
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                    {"privilege": "USAGE", "grantee_name": "OLD_ROLE"},
+                ],
+                "wh2": [],
+            }
+        },
+    }
+    expected = {
+        "use role useradmin",
+        "grant usage on warehouse wh2 to role foo",
+        "revoke usage on warehouse wh1 from role old_role",
+        'grant role foo to role "SYSADMIN"',
+    }
+    result = set(execution_plan(config=config, state=state))
+    print(result)
+    assert result == expected
+
+
+def test_warehouse_grants_aggregated_across_entries():
+    config = {
+        "grants": [
+            {"role": "foo", "warehouses": ["wh1"]},
+            {"role": "bar", "warehouses": ["wh1"]},
+        ]
+    }
+    state = {
+        "grants": {
+            "on_warehouses": {
+                "wh1": [
+                    {"privilege": "USAGE", "grantee_name": "OLD_ROLE"},
+                ]
+            }
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant usage on warehouse wh1 to role foo" in result
+    assert "grant usage on warehouse wh1 to role bar" in result
+    assert "revoke usage on warehouse wh1 from role old_role" in result
+
+
+def test_warehouse_ownership_not_revoked():
+    config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
+    state = {
+        "grants": {
+            "on_warehouses": {
+                "bar": [
+                    {"privilege": "OWNERSHIP", "grantee_name": "SYSADMIN"},
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                ]
+            }
+        },
+    }
+    expected = {
+        "use role useradmin",
+        'grant role foo to role "SYSADMIN"',
+    }
+    result = set(execution_plan(config=config, state=state))
+    print(result)
+    assert result == expected
+
+
+# ===== Database USAGE stateful tests =====
+
+
+def test_database_usage_skipped_when_already_exists():
+    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {
+                "db1": [
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                ]
+            },
+            "on_schemas": {
+                "db1.sch1": [
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                ]
+            },
+            "future_in_schemas": {
+                "db1.sch1": [
+                    {"privilege": "SELECT", "grant_on": "TABLE", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "VIEW", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "DYNAMIC TABLE", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "SEMANTIC VIEW", "grantee_name": "FOO"},
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant usage on database db1 to role foo" not in result
+    assert "revoke usage on database db1 from role foo" not in result
+
+
+def test_database_usage_granted_when_missing():
+    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {"db1.sch1": []},
+            "future_in_schemas": {"db1.sch1": []},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant usage on database db1 to role foo" in result
+
+
+def test_database_usage_revoked_from_unlisted_role():
+    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {
+                "db1": [
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                    {"privilege": "USAGE", "grantee_name": "ROGUE"},
+                ]
+            },
+            "on_schemas": {"db1.sch1": []},
+            "future_in_schemas": {"db1.sch1": []},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant usage on database db1 to role foo" not in result
+    assert "revoke usage on database db1 from role rogue" in result
+
+
+def test_database_usage_aggregated_across_read_and_write():
+    config = {
+        "grants": [
+            {"role": "reader", "read_on_schemas": ["db1.sch1"]},
+            {"role": "writer", "write_on_schemas": ["db1.sch2"]},
+        ]
+    }
+    state = {
+        "grants": {
+            "on_databases": {
+                "db1": [
+                    {"privilege": "USAGE", "grantee_name": "OLD_ROLE"},
+                ]
+            },
+            "on_schemas": {"db1.sch1": [], "db1.sch2": []},
+            "future_in_schemas": {"db1.sch1": []},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant usage on database db1 to role reader" in result
+    assert "grant usage on database db1 to role writer" in result
+    assert "revoke usage on database db1 from role old_role" in result
+
+
+# ===== Schema USAGE stateful tests =====
+
+
+def test_schema_usage_skipped_when_already_exists():
+    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {
+                "db1.sch1": [
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                ]
+            },
+            "future_in_schemas": {"db1.sch1": []},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant usage on schema db1.sch1 to role foo" not in result
+
+
+def test_schema_usage_revoked_from_unlisted_role():
+    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {
+                "db1.sch1": [
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                    {"privilege": "USAGE", "grantee_name": "ROGUE"},
+                ]
+            },
+            "future_in_schemas": {"db1.sch1": []},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "revoke usage on schema db1.sch1 from role rogue" in result
+
+
+def test_schema_usage_aggregated_across_read_and_write():
+    config = {
+        "grants": [
+            {"role": "reader", "read_on_schemas": ["db1.sch1"]},
+            {"role": "writer", "write_on_schemas": ["db1.sch1"]},
+        ]
+    }
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {
+                "db1.sch1": [
+                    {"privilege": "USAGE", "grantee_name": "OLD_ROLE"},
+                ]
+            },
+            "future_in_schemas": {"db1.sch1": []},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant usage on schema db1.sch1 to role reader" in result
+    assert "grant usage on schema db1.sch1 to role writer" in result
+    assert "revoke usage on schema db1.sch1 from role old_role" in result
+
+
+def test_schema_usage_aggregated_from_read_on_objects():
+    config = {
+        "grants": [
+            {"role": "obj_reader", "read_on_objects": ["table:db1.sch1.t1"]},
+        ]
+    }
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {
+                "db1.sch1": [
+                    {"privilege": "USAGE", "grantee_name": "ROGUE"},
+                ]
+            },
+            "on_objects": {"table:db1.sch1.t1": []},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant usage on schema db1.sch1 to role obj_reader" in result
+    assert "revoke usage on schema db1.sch1 from role rogue" in result
+
+
+# ===== Future read grants stateful tests =====
+
+
+def test_future_read_skipped_when_already_exists():
+    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {"db1.sch1": []},
+            "future_in_schemas": {
+                "db1.sch1": [
+                    {"privilege": "SELECT", "grant_on": "TABLE", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "VIEW", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "DYNAMIC TABLE", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "SEMANTIC VIEW", "grantee_name": "FOO"},
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant select on future tables in schema db1.sch1 to role foo" not in result
+    assert "grant select on future views in schema db1.sch1 to role foo" not in result
+    assert "grant select on future dynamic tables in schema db1.sch1 to role foo" not in result
+    assert "grant select on future semantic views in schema db1.sch1 to role foo" not in result
+
+
+def test_future_read_granted_when_missing():
+    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {"db1.sch1": []},
+            "future_in_schemas": {"db1.sch1": []},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant select on future tables in schema db1.sch1 to role foo" in result
+    assert "grant select on future views in schema db1.sch1 to role foo" in result
+    assert "grant select on future dynamic tables in schema db1.sch1 to role foo" in result
+    assert "grant select on future semantic views in schema db1.sch1 to role foo" in result
+
+
+def test_future_read_revoked_from_unlisted_role():
+    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {"db1.sch1": []},
+            "future_in_schemas": {
+                "db1.sch1": [
+                    {"privilege": "SELECT", "grant_on": "TABLE", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "TABLE", "grantee_name": "ROGUE"},
+                    {"privilege": "SELECT", "grant_on": "VIEW", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "VIEW", "grantee_name": "ROGUE"},
+                    {"privilege": "SELECT", "grant_on": "DYNAMIC TABLE", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "DYNAMIC TABLE", "grantee_name": "ROGUE"},
+                    {"privilege": "SELECT", "grant_on": "SEMANTIC VIEW", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "SEMANTIC VIEW", "grantee_name": "ROGUE"},
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    # Should revoke future grants for rogue
+    assert "revoke select on future tables in schema db1.sch1 from role rogue" in result
+    assert "revoke select on future views in schema db1.sch1 from role rogue" in result
+    assert "revoke select on future dynamic tables in schema db1.sch1 from role rogue" in result
+    assert "revoke select on future semantic views in schema db1.sch1 from role rogue" in result
+    # Should also revoke ALL grants to clean up existing objects
+    assert "revoke select on all tables in schema db1.sch1 from role rogue" in result
+    assert "revoke select on all views in schema db1.sch1 from role rogue" in result
+    assert "revoke select on all dynamic tables in schema db1.sch1 from role rogue" in result
+    assert "revoke select on all semantic views in schema db1.sch1 from role rogue" in result
+    # Should NOT revoke foo
+    assert not any("revoke" in s and "foo" in s for s in result)
+
+
+def test_all_grants_skipped_when_future_grants_already_exist():
+    """ALL grants are skipped when all future grants already exist in state."""
+    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {
+                "db1": [
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                ]
+            },
+            "on_schemas": {
+                "db1.sch1": [
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                ]
+            },
+            "future_in_schemas": {
+                "db1.sch1": [
+                    {"privilege": "SELECT", "grant_on": "TABLE", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "VIEW", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "DYNAMIC TABLE", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "SEMANTIC VIEW", "grantee_name": "FOO"},
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    # ALL grants should NOT be emitted when future grants are already in place
+    assert "grant select on all tables in schema db1.sch1 to role foo" not in result
+    assert "grant select on all views in schema db1.sch1 to role foo" not in result
+    assert "grant select on all dynamic tables in schema db1.sch1 to role foo" not in result
+    assert "grant select on all semantic views in schema db1.sch1 to role foo" not in result
+
+
+def test_all_grants_skipped_with_underscored_grant_on():
+    """Snowflake returns DYNAMIC_TABLE/SEMANTIC_VIEW with underscores — must still match."""
+    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {
+                "db1": [{"privilege": "USAGE", "grantee_name": "FOO"}]
+            },
+            "on_schemas": {
+                "db1.sch1": [{"privilege": "USAGE", "grantee_name": "FOO"}]
+            },
+            "future_in_schemas": {
+                "db1.sch1": [
+                    {"privilege": "SELECT", "grant_on": "TABLE", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "VIEW", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "DYNAMIC_TABLE", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grant_on": "SEMANTIC_VIEW", "grantee_name": "FOO"},
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant select on future dynamic tables in schema db1.sch1 to role foo" not in result
+    assert "grant select on future semantic views in schema db1.sch1 to role foo" not in result
+    assert "grant select on all dynamic tables in schema db1.sch1 to role foo" not in result
+    assert "grant select on all semantic views in schema db1.sch1 to role foo" not in result
+
+
+def test_all_grants_emitted_when_future_grants_missing():
+    """ALL grants are emitted when future grants are being newly added."""
+    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {"db1.sch1": []},
+            "future_in_schemas": {"db1.sch1": []},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant select on all tables in schema db1.sch1 to role foo" in result
+    assert "grant select on all views in schema db1.sch1 to role foo" in result
+    assert "grant select on all dynamic tables in schema db1.sch1 to role foo" in result
+    assert "grant select on all semantic views in schema db1.sch1 to role foo" in result
+
+
+# ===== CREATE grants stateful tests =====
+
+
+def test_create_grants_skipped_when_already_exists():
+    config = {"grants": [{"role": "foo", "write_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {
+                "db1.sch1": [
+                    {"privilege": "CREATE TABLE", "grantee_name": "FOO"},
+                    {"privilege": "CREATE VIEW", "grantee_name": "FOO"},
+                    {"privilege": "CREATE DYNAMIC TABLE", "grantee_name": "FOO"},
+                    {"privilege": "CREATE SEMANTIC VIEW", "grantee_name": "FOO"},
+                    {"privilege": "CREATE TASK", "grantee_name": "FOO"},
+                    {"privilege": "CREATE ALERT", "grantee_name": "FOO"},
+                    {"privilege": "CREATE MASKING POLICY", "grantee_name": "FOO"},
+                    {"privilege": "CREATE ROW ACCESS POLICY", "grantee_name": "FOO"},
+                    {"privilege": "CREATE PROCEDURE", "grantee_name": "FOO"},
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert not any("grant create" in s for s in result)
+
+
+def test_create_grants_granted_when_missing():
+    config = {"grants": [{"role": "foo", "write_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {"db1.sch1": []},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant create table on schema db1.sch1 to role foo" in result
+    assert "grant create view on schema db1.sch1 to role foo" in result
+    assert "grant create dynamic table on schema db1.sch1 to role foo" in result
+    assert "grant create procedure on schema db1.sch1 to role foo" in result
+
+
+def test_create_grants_revoked_from_unlisted_role():
+    config = {"grants": [{"role": "foo", "write_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {
+                "db1.sch1": [
+                    {"privilege": "CREATE TABLE", "grantee_name": "FOO"},
+                    {"privilege": "CREATE TABLE", "grantee_name": "ROGUE"},
+                    {"privilege": "CREATE VIEW", "grantee_name": "FOO"},
+                    {"privilege": "CREATE VIEW", "grantee_name": "ROGUE"},
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "revoke create table on schema db1.sch1 from role rogue" in result
+    assert "revoke create view on schema db1.sch1 from role rogue" in result
+    assert not any("revoke create" in s and "foo" in s for s in result)
+
+
+def test_create_grants_partial_missing():
+    """Some CREATE types exist, some don't — only grants the missing ones."""
+    config = {"grants": [{"role": "foo", "write_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {
+                "db1.sch1": [
+                    {"privilege": "CREATE TABLE", "grantee_name": "FOO"},
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant create table on schema db1.sch1 to role foo" not in result
+    assert "grant create view on schema db1.sch1 to role foo" in result
+    assert "grant create procedure on schema db1.sch1 to role foo" in result
+
+
+# ===== Object SELECT stateful tests =====
+
+
+def test_object_select_skipped_when_already_exists():
+    config = {"grants": [{"role": "foo", "read_on_objects": ["table:db1.sch1.t1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {"db1.sch1": []},
+            "on_objects": {
+                "table:db1.sch1.t1": [
+                    {"privilege": "SELECT", "grantee_name": "FOO"},
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant select on table db1.sch1.t1 to role foo" not in result
+
+
+def test_object_select_granted_when_missing():
+    config = {"grants": [{"role": "foo", "read_on_objects": ["table:db1.sch1.t1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {"db1.sch1": []},
+            "on_objects": {"table:db1.sch1.t1": []},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant select on table db1.sch1.t1 to role foo" in result
+
+
+def test_object_select_revoked_from_unlisted_role():
+    config = {"grants": [{"role": "foo", "read_on_objects": ["table:db1.sch1.t1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {"db1.sch1": []},
+            "on_objects": {
+                "table:db1.sch1.t1": [
+                    {"privilege": "SELECT", "grantee_name": "FOO"},
+                    {"privilege": "SELECT", "grantee_name": "ROGUE"},
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "revoke select on table db1.sch1.t1 from role rogue" in result
+    assert not any("revoke" in s and "foo" in s for s in result)
+
+
+def test_object_select_not_revoked_when_covered_by_read_on_schemas():
+    """A role with read_on_schemas should not have its object SELECT revoked."""
+    config = {
+        "grants": [
+            {"role": "analyst", "read_on_schemas": ["db1.sch1"]},
+            {"role": "special", "read_on_objects": ["table:db1.sch1.t1"]},
+        ]
+    }
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {"db1.sch1": []},
+            "future_in_schemas": {"db1.sch1": []},
+            "on_objects": {
+                "table:db1.sch1.t1": [
+                    {"privilege": "SELECT", "grantee_name": "ANALYST"},
+                    {"privilege": "SELECT", "grantee_name": "SPECIAL"},
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert not any("revoke" in s and "analyst" in s and "db1.sch1.t1" in s for s in result)
+    assert not any("revoke" in s and "special" in s and "db1.sch1.t1" in s for s in result)
+
+
+def test_object_select_revoked_when_not_covered_by_schema_or_object():
+    """A role not in read_on_schemas or read_on_objects should be revoked."""
+    config = {
+        "grants": [
+            {"role": "analyst", "read_on_schemas": ["db1.sch1"]},
+            {"role": "special", "read_on_objects": ["table:db1.sch1.t1"]},
+        ]
+    }
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {"db1.sch1": []},
+            "future_in_schemas": {"db1.sch1": []},
+            "on_objects": {
+                "table:db1.sch1.t1": [
+                    {"privilege": "SELECT", "grantee_name": "ANALYST"},
+                    {"privilege": "SELECT", "grantee_name": "SPECIAL"},
+                    {"privilege": "SELECT", "grantee_name": "ROGUE"},
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "revoke select on table db1.sch1.t1 from role rogue" in result
+
+
+# ===== Stateless mode compatibility =====
+
+
+def test_stateless_mode_grants_unconditionally():
+    """When no state is provided, all grants are emitted unconditionally."""
+    config = {
+        "grants": [
+            {
+                "role": "foo",
+                "read_on_schemas": ["db1.sch1"],
+                "write_on_schemas": ["db1.sch2"],
+                "read_on_objects": ["table:db1.sch1.t1"],
+                "warehouses": ["wh1"],
+            }
+        ]
+    }
+    result = set(execution_plan(config=config))
+    assert "grant usage on database db1 to role foo" in result
+    assert "grant usage on schema db1.sch1 to role foo" in result
+    assert "grant usage on schema db1.sch2 to role foo" in result
+    assert "grant usage on warehouse wh1 to role foo" in result
+    assert "grant select on future tables in schema db1.sch1 to role foo" in result
+    assert "grant create table on schema db1.sch2 to role foo" in result
+    assert "grant select on table db1.sch1.t1 to role foo" in result
+    assert not any("revoke" in s for s in result)
+
+
+# ===== Ownership transfer tests =====
+
+
+def test_database_ownership_transferred_when_wrong_owner():
+    config = {
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+    }
+    state = {
+        "databases": [
+            {
+                "name": "db1",
+                "retention_time": "7",
+                "options": "",
+                "owner": "ACCOUNTADMIN",
+            }
+        ],
+        "schemas": [
+            {
+                "name": "sch1",
+                "database_name": "db1",
+                "retention_time": "7",
+                "options": "",
+                "owner": "SYSADMIN",
+            }
+        ],
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "grant ownership on database db1 to role sysadmin copy current grants" in result
+
+
+def test_database_ownership_not_checked_when_new():
+    """New objects have no state, so ownership should not be checked."""
+    config = {
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+    }
+    result = set(execution_plan(config=config))
+    assert not any("ownership" in s for s in result)
+
+
+def test_schema_ownership_transferred_when_wrong_owner():
+    config = {
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+    }
+    state = {
+        "databases": [
+            {
+                "name": "db1",
+                "retention_time": "7",
+                "options": "",
+                "owner": "SYSADMIN",
+            }
+        ],
+        "schemas": [
+            {
+                "name": "sch1",
+                "database_name": "db1",
+                "retention_time": "7",
+                "options": "",
+                "owner": "ACCOUNTADMIN",
+            }
+        ],
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert (
+        "grant ownership on schema db1.sch1 to role sysadmin copy current grants"
+        in result
+    )
+
+
+def test_warehouse_ownership_transferred_when_wrong_owner():
+    config = {"warehouses": [{"name": "wh1", "size": "xsmall"}]}
+    state = {
+        "warehouses": [{"name": "wh1", "size": "XSMALL", "owner": "ACCOUNTADMIN"}],
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert (
+        "grant ownership on warehouse wh1 to role sysadmin copy current grants"
+        in result
+    )
+
+
+def test_role_ownership_transferred_when_wrong_owner():
+    config = {"roles": [{"name": "myrole"}]}
+    state = {
+        "roles": [{"name": "myrole", "owner": "ACCOUNTADMIN"}],
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert (
+        "grant ownership on role myrole to role useradmin copy current grants" in result
+    )
+
+
+def test_role_ownership_not_transferred_when_correct():
+    config = {"roles": [{"name": "myrole"}]}
+    state = {
+        "roles": [{"name": "myrole", "owner": "USERADMIN"}],
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert not any("ownership" in s for s in result)
+
+
+# ===== Revoke unmanaged privileges tests =====
+
+
+def test_unmanaged_privilege_revoked_on_database():
+    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {
+                "db1": [
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                    {"privilege": "MODIFY", "grantee_name": "BAR"},
+                    {"privilege": "MONITOR", "grantee_name": "BAZ"},
+                    {"privilege": "OWNERSHIP", "grantee_name": "SYSADMIN"},
+                ]
+            },
+            "on_schemas": {},
+            "future_in_schemas": {},
+            "on_objects": {},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "revoke modify on database db1 from role bar" in result
+    assert "revoke monitor on database db1 from role baz" in result
+    assert not any("revoke ownership" in s for s in result)
+    assert "revoke usage on database db1 from role foo" not in result
+
+
+def test_unmanaged_privilege_revoked_on_warehouse():
+    config = {"grants": [{"role": "foo", "warehouses": ["wh1"]}]}
+    state = {
+        "grants": {
+            "on_warehouses": {
+                "wh1": [
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                    {"privilege": "OPERATE", "grantee_name": "FOO"},
+                    {"privilege": "MODIFY", "grantee_name": "BAR"},
+                    {"privilege": "OWNERSHIP", "grantee_name": "SYSADMIN"},
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "revoke operate on warehouse wh1 from role foo" in result
+    assert "revoke modify on warehouse wh1 from role bar" in result
+    assert not any("revoke ownership" in s for s in result)
+    assert "revoke usage on warehouse wh1 from role foo" not in result
+
+
+def test_unmanaged_privilege_revoked_on_schema():
+    config = {
+        "grants": [
+            {"role": "foo", "read_on_schemas": ["db1.sch1"]},
+            {"role": "bar", "write_on_schemas": ["db1.sch1"]},
+        ]
+    }
+    state = {
+        "grants": {
+            "on_databases": {},
+            "on_schemas": {
+                "db1.sch1": [
+                    {"privilege": "USAGE", "grantee_name": "FOO"},
+                    {"privilege": "USAGE", "grantee_name": "BAR"},
+                    {"privilege": "CREATE TABLE", "grantee_name": "BAR"},
+                    {"privilege": "MODIFY", "grantee_name": "BAZ"},
+                    {"privilege": "OWNERSHIP", "grantee_name": "SYSADMIN"},
+                ]
+            },
+            "future_in_schemas": {},
+            "on_objects": {},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert "revoke modify on schema db1.sch1 from role baz" in result
+    assert not any("revoke ownership" in s for s in result)
+    assert "revoke usage on schema db1.sch1 from role foo" not in result
+    assert "revoke create table on schema db1.sch1 from role bar" not in result
+
+
+def test_unmanaged_privilege_not_revoked_without_state():
+    """When no state is available, nothing should be revoked."""
+    config = {"grants": [{"role": "foo", "warehouses": ["wh1"]}]}
+    result = set(execution_plan(config=config))
+    assert not any("revoke" in s for s in result)

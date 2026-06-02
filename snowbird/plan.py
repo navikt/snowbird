@@ -35,6 +35,10 @@ create_role = """
     create role if not exists {{ role }}
 """
 
+transfer_ownership = """
+    grant ownership on {{ resource_type }} {{ name }} to role {{ role }} copy current grants
+"""
+
 create_network_policy = """
     create network policy if not exists {{ name }}
         allowed_network_rule_list = (
@@ -68,41 +72,83 @@ alter_network_policy = """
 grant_role_usage_on_warehouse = """
     grant usage on warehouse {{ warehouse }} to role {{ role }}
 """
+revoke_role_usage_on_warehouse = """
+    revoke usage on warehouse {{ warehouse }} from role {{ role }}
+"""
+revoke_privilege_on_resource = """
+    revoke {{ privilege }} on {{ resource_type }} {{ name }} from role {{ role }}
+"""
 grant_role_usage_on_database = """
     grant usage on database {{ database }} to role {{ role }}
+"""
+revoke_role_usage_on_database = """
+    revoke usage on database {{ database }} from role {{ role }}
 """
 grant_role_usage_on_schema = """
     grant usage on schema {{ database }}.{{ schema }} to role {{ role }}
 """
+revoke_role_usage_on_schema = """
+    revoke usage on schema {{ database }}.{{ schema }} from role {{ role }}
+"""
 grant_role_create_on_schema = """
     grant create {{ type }} on schema {{ database }}.{{ schema }} to role {{ role }}
+"""
+revoke_role_create_on_schema = """
+    revoke create {{ type }} on schema {{ database }}.{{ schema }} from role {{ role }}
 """
 grant_role_read_on_tables_in_schema = """
     grant select on all tables in schema {{ database }}.{{ schema }} to role {{ role }}
 """
+revoke_role_read_on_tables_in_schema = """
+    revoke select on all tables in schema {{ database }}.{{ schema }} from role {{ role }}
+"""
 grant_role_future_read_on_tables_in_schema = """
     grant select on future tables in schema {{ database }}.{{ schema }} to role {{ role }}
+"""
+revoke_role_future_read_on_tables_in_schema = """
+    revoke select on future tables in schema {{ database }}.{{ schema }} from role {{ role }}
 """
 grant_role_read_on_views_in_schema = """
     grant select on all views in schema {{ database }}.{{ schema }} to role {{ role }}
 """
+revoke_role_read_on_views_in_schema = """
+    revoke select on all views in schema {{ database }}.{{ schema }} from role {{ role }}
+"""
 grant_role_future_read_on_views_in_schema = """
     grant select on future views in schema {{ database }}.{{ schema }} to role {{ role }}
+"""
+revoke_role_future_read_on_views_in_schema = """
+    revoke select on future views in schema {{ database }}.{{ schema }} from role {{ role }}
 """
 grant_role_read_on_dynamic_tables_in_schema = """
     grant select on all dynamic tables in schema {{ database }}.{{ schema }} to role {{ role }}
 """
-grant_role_future_read_on_dynamic_tabbles_in_schema = """
+revoke_role_read_on_dynamic_tables_in_schema = """
+    revoke select on all dynamic tables in schema {{ database }}.{{ schema }} from role {{ role }}
+"""
+grant_role_future_read_on_dynamic_tables_in_schema = """
     grant select on future dynamic tables in schema {{ database }}.{{ schema }} to role {{ role }}
+"""
+revoke_role_future_read_on_dynamic_tables_in_schema = """
+    revoke select on future dynamic tables in schema {{ database }}.{{ schema }} from role {{ role }}
 """
 grant_role_read_on_semantic_views_in_schema = """
     grant select on all semantic views in schema {{ database }}.{{ schema }} to role {{ role }}
 """
+revoke_role_read_on_semantic_views_in_schema = """
+    revoke select on all semantic views in schema {{ database }}.{{ schema }} from role {{ role }}
+"""
 grant_role_future_read_on_semantic_views_in_schema = """
     grant select on future semantic views in schema {{ database }}.{{ schema }} to role {{ role }}
 """
+revoke_role_future_read_on_semantic_views_in_schema = """
+    revoke select on future semantic views in schema {{ database }}.{{ schema }} from role {{ role }}
+"""
 grant_role_select_on_object = """
     grant select on {{ object_type }} {{ database }}.{{ schema }}.{{ object_name }} to role {{ role }}
+"""
+revoke_role_select_on_object = """
+    revoke select on {{ object_type }} {{ database }}.{{ schema }}.{{ object_name }} from role {{ role }}
 """
 grant_role_to_user = """
     grant role {{ role }} to user "{{ to_user.upper() }}"
@@ -200,6 +246,13 @@ def _create_databases_execution_plan(databases: list[dict], state: dict) -> list
             ).render(database=db_name, retention_days=db_data_retention_time_in_days)
             execution_plan.append(alter_database_data_retention_statement)
 
+        if db_state.get("owner") and db_state["owner"] != "sysadmin":
+            execution_plan.append(
+                jinja_env.from_string(transfer_ownership).render(
+                    resource_type="database", name=db_name, role="sysadmin"
+                )
+            )
+
     return execution_plan
 
 
@@ -261,6 +314,15 @@ def _create_schema_execution_plan(databases: list[dict], state: dict) -> list[st
                     retention_days=schema_data_retention_time_in_days,
                 )
                 execution_plan.append(alter_schema_data_retention_statement)
+
+            if schema_state.get("owner") and schema_state["owner"] != "sysadmin":
+                execution_plan.append(
+                    jinja_env.from_string(transfer_ownership).render(
+                        resource_type="schema",
+                        name=full_schema_name,
+                        role="sysadmin",
+                    )
+                )
     return execution_plan
 
 
@@ -289,6 +351,15 @@ def _create_warehouses_execution_plan(warehouses: list[dict], state: dict) -> li
                 warehouse=warehouse_name, size=warehouse_size
             )
             execution_plan.append(alter_warehouse_statement)
+
+        if warehouse_state.get("owner") and warehouse_state["owner"] != "sysadmin":
+            execution_plan.append(
+                jinja_env.from_string(transfer_ownership).render(
+                    resource_type="warehouse",
+                    name=warehouse_name,
+                    role="sysadmin",
+                )
+            )
     return execution_plan
 
 
@@ -336,6 +407,12 @@ def _create_roles_execution_plan(roles: list[dict], state: dict) -> list[str]:
                 role=role_name
             )
             execution_plan.append(create_role_statement)
+        elif role_state.get("owner") and role_state["owner"] != "useradmin":
+            execution_plan.append(
+                jinja_env.from_string(transfer_ownership).render(
+                    resource_type="role", name=role_name, role="useradmin"
+                )
+            )
     return execution_plan
 
 
@@ -343,114 +420,36 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
     if len(grants) == 0:
         return []
     execution_plan = set()
+
+    # === Phase 1: Aggregate desired grants across all config entries ===
+
+    desired_warehouse_roles: dict[str, set[str]] = {}
+    desired_database_roles: dict[str, set[str]] = {}
+    desired_schema_roles: dict[str, set[str]] = {}
+    desired_future_read: dict[str, set[str]] = {}
+    desired_create: dict[str, set[str]] = {}
+    # {config_key: {"roles": set, "sf_type": str, "db": str, "schema": str, "name": str}}
+    desired_object_read: dict[str, dict] = {}
+
     for grant in grants:
         role = grant["role"]
-        warehouses = grant.get("warehouses", [])
-        read_on_schemas = grant.get("read_on_schemas", [])
-        write_on_schemas = grant.get("write_on_schemas", [])
-        read_on_objects = grant.get("read_on_objects", [])
-        to_roles = grant.get("to_roles", [])
-        to_users = grant.get("to_users", [])
 
-        for warehouse in warehouses:
-            grant_role_usage_on_warehouse_statement = jinja_env.from_string(
-                grant_role_usage_on_warehouse
-            ).render(role=role, warehouse=warehouse)
-            execution_plan.add(grant_role_usage_on_warehouse_statement)
+        for warehouse in grant.get("warehouses", []):
+            desired_warehouse_roles.setdefault(warehouse, set()).add(role)
 
-        for full_schema_path in read_on_schemas:
-            database, schema = full_schema_path.split(".")
-            grant_role_usage_on_database_statement = jinja_env.from_string(
-                grant_role_usage_on_database
-            ).render(role=role, database=database)
-            execution_plan.add(grant_role_usage_on_database_statement)
+        for schema_path in grant.get("read_on_schemas", []):
+            database = schema_path.split(".")[0]
+            desired_database_roles.setdefault(database, set()).add(role)
+            desired_schema_roles.setdefault(schema_path, set()).add(role)
+            desired_future_read.setdefault(schema_path, set()).add(role)
 
-            grant_role_usage_on_schema_statement = jinja_env.from_string(
-                grant_role_usage_on_schema
-            ).render(role=role, database=database, schema=schema)
-            execution_plan.add(grant_role_usage_on_schema_statement)
+        for schema_path in grant.get("write_on_schemas", []):
+            database = schema_path.split(".")[0]
+            desired_database_roles.setdefault(database, set()).add(role)
+            desired_schema_roles.setdefault(schema_path, set()).add(role)
+            desired_create.setdefault(schema_path, set()).add(role)
 
-            grant_role_read_on_schema_statement = jinja_env.from_string(
-                grant_role_read_on_tables_in_schema
-            ).render(role=role, database=database, schema=schema)
-            execution_plan.add(grant_role_read_on_schema_statement)
-
-            grant_role_future_read_on_schema_statement = jinja_env.from_string(
-                grant_role_future_read_on_tables_in_schema
-            ).render(role=role, database=database, schema=schema)
-            execution_plan.add(grant_role_future_read_on_schema_statement)
-
-            grant_role_read_on_views_in_schema_statement = jinja_env.from_string(
-                grant_role_read_on_views_in_schema
-            ).render(role=role, database=database, schema=schema)
-            execution_plan.add(grant_role_read_on_views_in_schema_statement)
-
-            grant_role_future_read_on_views_in_schema_statement = jinja_env.from_string(
-                grant_role_future_read_on_views_in_schema
-            ).render(role=role, database=database, schema=schema)
-            execution_plan.add(grant_role_future_read_on_views_in_schema_statement)
-
-            grant_role_read_on_dynamic_tables_in_schema_statement = (
-                jinja_env.from_string(
-                    grant_role_read_on_dynamic_tables_in_schema
-                ).render(role=role, database=database, schema=schema)
-            )
-            execution_plan.add(grant_role_read_on_dynamic_tables_in_schema_statement)
-
-            grant_role_future_read_on_dynamic_tables_in_schema_statement = (
-                jinja_env.from_string(
-                    grant_role_future_read_on_dynamic_tabbles_in_schema
-                ).render(role=role, database=database, schema=schema)
-            )
-            execution_plan.add(
-                grant_role_future_read_on_dynamic_tables_in_schema_statement
-            )
-
-            grant_role_read_on_semantic_views_in_schema_statement = (
-                jinja_env.from_string(
-                    grant_role_read_on_semantic_views_in_schema
-                ).render(role=role, database=database, schema=schema)
-            )
-            execution_plan.add(grant_role_read_on_semantic_views_in_schema_statement)
-            grant_role_future_read_on_semantic_views_in_schema_statement = (
-                jinja_env.from_string(
-                    grant_role_future_read_on_semantic_views_in_schema
-                ).render(role=role, database=database, schema=schema)
-            )
-            execution_plan.add(
-                grant_role_future_read_on_semantic_views_in_schema_statement
-            )
-
-        for full_schema_path in write_on_schemas:
-            database, schema = full_schema_path.split(".")
-            grant_role_usage_on_database_statement = jinja_env.from_string(
-                grant_role_usage_on_database
-            ).render(role=role, database=database)
-            execution_plan.add(grant_role_usage_on_database_statement)
-
-            grant_role_usage_on_schema_statement = jinja_env.from_string(
-                grant_role_usage_on_schema
-            ).render(role=role, database=database, schema=schema)
-            execution_plan.add(grant_role_usage_on_schema_statement)
-
-            create_types = [
-                "table",
-                "view",
-                "dynamic table",
-                "semantic view",
-                "task",
-                "alert",
-                "masking policy",
-                "row access policy",
-                "procedure",
-            ]
-            for type in create_types:
-                grant_role_create_on_schema_statement = jinja_env.from_string(
-                    grant_role_create_on_schema
-                ).render(type=type, role=role, database=database, schema=schema)
-                execution_plan.add(grant_role_create_on_schema_statement)
-
-        for object_entry in read_on_objects:
+        for object_entry in grant.get("read_on_objects", []):
             object_type, object_name = _parse_object_type(object_entry)
             parts = object_name.split(".")
             if len(parts) != 3:
@@ -458,27 +457,354 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
                     f"Invalid object path {object_name}, must be in the format database.schema.object"
                 )
             database, schema, name = parts
+            config_key = object_entry
+            desired_database_roles.setdefault(database, set()).add(role)
+            desired_schema_roles.setdefault(
+                f"{database}.{schema}", set()
+            ).add(role)
+            if config_key not in desired_object_read:
+                desired_object_read[config_key] = {
+                    "roles": set(),
+                    "sf_type": object_type,
+                    "db": database,
+                    "schema": schema,
+                    "name": name,
+                }
+            desired_object_read[config_key]["roles"].add(role)
 
-            grant_role_usage_on_database_statement = jinja_env.from_string(
-                grant_role_usage_on_database
-            ).render(role=role, database=database)
-            execution_plan.add(grant_role_usage_on_database_statement)
+    # === Phase 2: Stateful diffing ===
 
-            grant_role_usage_on_schema_statement = jinja_env.from_string(
-                grant_role_usage_on_schema
-            ).render(role=role, database=database, schema=schema)
-            execution_plan.add(grant_role_usage_on_schema_statement)
+    # --- Warehouse USAGE ---
+    on_warehouses_state = state.get("on_warehouses", {})
+    for warehouse, desired_roles in desired_warehouse_roles.items():
+        warehouse_grant_state = on_warehouses_state.get(warehouse)
+        if warehouse_grant_state is None:
+            for role in desired_roles:
+                stmt = jinja_env.from_string(grant_role_usage_on_warehouse).render(
+                    role=role, warehouse=warehouse
+                )
+                execution_plan.add(stmt)
+        else:
+            actual_roles = {
+                g["grantee_name"].lower()
+                for g in warehouse_grant_state
+                if g["privilege"].lower() == "usage"
+            }
+            for role in desired_roles - actual_roles:
+                stmt = jinja_env.from_string(grant_role_usage_on_warehouse).render(
+                    role=role, warehouse=warehouse
+                )
+                execution_plan.add(stmt)
+            for role in actual_roles - desired_roles:
+                stmt = jinja_env.from_string(revoke_role_usage_on_warehouse).render(
+                    role=role, warehouse=warehouse
+                )
+                execution_plan.add(stmt)
+            # Revoke unmanaged privileges (anything that isn't USAGE or OWNERSHIP)
+            for g in warehouse_grant_state:
+                priv = g["privilege"].lower()
+                if priv not in ("usage", "ownership"):
+                    execution_plan.add(
+                        jinja_env.from_string(revoke_privilege_on_resource).render(
+                            privilege=priv,
+                            resource_type="warehouse",
+                            name=warehouse,
+                            role=g["grantee_name"].lower(),
+                        )
+                    )
 
-            grant_select_on_object_statement = jinja_env.from_string(
-                grant_role_select_on_object
-            ).render(
-                role=role,
-                object_type=object_type,
-                database=database,
-                schema=schema,
-                object_name=name,
+    # --- Database USAGE ---
+    on_databases_state = state.get("on_databases", {})
+    for database, desired_roles in desired_database_roles.items():
+        db_grant_state = on_databases_state.get(database)
+        if db_grant_state is None:
+            for role in desired_roles:
+                execution_plan.add(
+                    jinja_env.from_string(grant_role_usage_on_database).render(
+                        role=role, database=database
+                    )
+                )
+        else:
+            actual_roles = {
+                g["grantee_name"].lower()
+                for g in db_grant_state
+                if g["privilege"].lower() == "usage"
+            }
+            for role in desired_roles - actual_roles:
+                execution_plan.add(
+                    jinja_env.from_string(grant_role_usage_on_database).render(
+                        role=role, database=database
+                    )
+                )
+            for role in actual_roles - desired_roles:
+                execution_plan.add(
+                    jinja_env.from_string(revoke_role_usage_on_database).render(
+                        role=role, database=database
+                    )
+                )
+            # Revoke unmanaged privileges
+            for g in db_grant_state:
+                priv = g["privilege"].lower()
+                if priv not in ("usage", "ownership"):
+                    execution_plan.add(
+                        jinja_env.from_string(revoke_privilege_on_resource).render(
+                            privilege=priv,
+                            resource_type="database",
+                            name=database,
+                            role=g["grantee_name"].lower(),
+                        )
+                    )
+
+    # --- Schema USAGE ---
+    on_schemas_state = state.get("on_schemas", {})
+    create_types = [
+        "table",
+        "view",
+        "dynamic table",
+        "semantic view",
+        "task",
+        "alert",
+        "masking policy",
+        "row access policy",
+        "procedure",
+    ]
+    for schema_path, desired_roles in desired_schema_roles.items():
+        database, schema = schema_path.split(".")
+        schema_grant_state = on_schemas_state.get(schema_path)
+        if schema_grant_state is None:
+            for role in desired_roles:
+                execution_plan.add(
+                    jinja_env.from_string(grant_role_usage_on_schema).render(
+                        role=role, database=database, schema=schema
+                    )
+                )
+        else:
+            actual_roles = {
+                g["grantee_name"].lower()
+                for g in schema_grant_state
+                if g["privilege"].lower() == "usage"
+            }
+            for role in desired_roles - actual_roles:
+                execution_plan.add(
+                    jinja_env.from_string(grant_role_usage_on_schema).render(
+                        role=role, database=database, schema=schema
+                    )
+                )
+            for role in actual_roles - desired_roles:
+                execution_plan.add(
+                    jinja_env.from_string(revoke_role_usage_on_schema).render(
+                        role=role, database=database, schema=schema
+                    )
+                )
+            # Revoke unmanaged privileges (not USAGE, not CREATE types, not OWNERSHIP)
+            managed_schema_privs = {"usage", "ownership"}
+            for ct in create_types:
+                managed_schema_privs.add(f"create {ct}")
+            for g in schema_grant_state:
+                priv = g["privilege"].lower()
+                if priv not in managed_schema_privs:
+                    execution_plan.add(
+                        jinja_env.from_string(revoke_privilege_on_resource).render(
+                            privilege=priv,
+                            resource_type="schema",
+                            name=schema_path,
+                            role=g["grantee_name"].lower(),
+                        )
+                    )
+
+    # --- Future read grants (read_on_schemas) ---
+    future_in_schemas_state = state.get("future_in_schemas", {})
+    future_grant_types = [
+        (
+            "table",
+            grant_role_future_read_on_tables_in_schema,
+            revoke_role_future_read_on_tables_in_schema,
+            revoke_role_read_on_tables_in_schema,
+        ),
+        (
+            "view",
+            grant_role_future_read_on_views_in_schema,
+            revoke_role_future_read_on_views_in_schema,
+            revoke_role_read_on_views_in_schema,
+        ),
+        (
+            "dynamic table",
+            grant_role_future_read_on_dynamic_tables_in_schema,
+            revoke_role_future_read_on_dynamic_tables_in_schema,
+            revoke_role_read_on_dynamic_tables_in_schema,
+        ),
+        (
+            "semantic view",
+            grant_role_future_read_on_semantic_views_in_schema,
+            revoke_role_future_read_on_semantic_views_in_schema,
+            revoke_role_read_on_semantic_views_in_schema,
+        ),
+    ]
+    # Track (schema_path, role) pairs that need new future grants — these also
+    # need ALL grants to bootstrap existing objects in that schema.
+    schemas_needing_bootstrap: set[tuple[str, str]] = set()
+    for schema_path, desired_roles in desired_future_read.items():
+        database, schema = schema_path.split(".")
+        future_schema_state = future_in_schemas_state.get(schema_path)
+        for grant_on_type, grant_tmpl, revoke_future_tmpl, revoke_all_tmpl in future_grant_types:
+            if future_schema_state is None:
+                for role in desired_roles:
+                    schemas_needing_bootstrap.add((schema_path, role))
+                    execution_plan.add(
+                        jinja_env.from_string(grant_tmpl).render(
+                            role=role, database=database, schema=schema
+                        )
+                    )
+            else:
+                actual_roles = {
+                    g["grantee_name"].lower()
+                    for g in future_schema_state
+                    if g["privilege"].lower() == "select"
+                    and g["grant_on"].lower().replace("_", " ") == grant_on_type
+                }
+                for role in desired_roles - actual_roles:
+                    schemas_needing_bootstrap.add((schema_path, role))
+                    execution_plan.add(
+                        jinja_env.from_string(grant_tmpl).render(
+                            role=role, database=database, schema=schema
+                        )
+                    )
+                for role in actual_roles - desired_roles:
+                    execution_plan.add(
+                        jinja_env.from_string(revoke_future_tmpl).render(
+                            role=role, database=database, schema=schema
+                        )
+                    )
+                    # Also revoke on existing objects to clean up
+                    execution_plan.add(
+                        jinja_env.from_string(revoke_all_tmpl).render(
+                            role=role, database=database, schema=schema
+                        )
+                    )
+
+    # --- CREATE grants (write_on_schemas) ---
+    for schema_path, desired_roles in desired_create.items():
+        database, schema = schema_path.split(".")
+        schema_grant_state = on_schemas_state.get(schema_path)
+        for create_type in create_types:
+            privilege_name = f"create {create_type}"
+            if schema_grant_state is None:
+                for role in desired_roles:
+                    execution_plan.add(
+                        jinja_env.from_string(grant_role_create_on_schema).render(
+                            type=create_type,
+                            role=role,
+                            database=database,
+                            schema=schema,
+                        )
+                    )
+            else:
+                actual_roles = {
+                    g["grantee_name"].lower()
+                    for g in schema_grant_state
+                    if g["privilege"].lower() == privilege_name
+                }
+                for role in desired_roles - actual_roles:
+                    execution_plan.add(
+                        jinja_env.from_string(grant_role_create_on_schema).render(
+                            type=create_type,
+                            role=role,
+                            database=database,
+                            schema=schema,
+                        )
+                    )
+                for role in actual_roles - desired_roles:
+                    execution_plan.add(
+                        jinja_env.from_string(revoke_role_create_on_schema).render(
+                            type=create_type,
+                            role=role,
+                            database=database,
+                            schema=schema,
+                        )
+                    )
+
+    # --- Object SELECT grants (read_on_objects) ---
+    on_objects_state = state.get("on_objects", {})
+    for config_key, info in desired_object_read.items():
+        obj_state = on_objects_state.get(config_key)
+        explicitly_desired = info["roles"]
+        # Include roles from read_on_schemas for the containing schema
+        # to avoid revoking schema-level access
+        containing_schema = f"{info['db']}.{info['schema']}"
+        expanded_desired = explicitly_desired | desired_future_read.get(
+            containing_schema, set()
+        )
+
+        if obj_state is None:
+            for role in explicitly_desired:
+                execution_plan.add(
+                    jinja_env.from_string(grant_role_select_on_object).render(
+                        role=role,
+                        object_type=info["sf_type"],
+                        database=info["db"],
+                        schema=info["schema"],
+                        object_name=info["name"],
+                    )
+                )
+        else:
+            actual_roles = {
+                g["grantee_name"].lower()
+                for g in obj_state
+                if g["privilege"].lower() == "select"
+            }
+            for role in explicitly_desired - actual_roles:
+                execution_plan.add(
+                    jinja_env.from_string(grant_role_select_on_object).render(
+                        role=role,
+                        object_type=info["sf_type"],
+                        database=info["db"],
+                        schema=info["schema"],
+                        object_name=info["name"],
+                    )
+                )
+            for role in actual_roles - expanded_desired:
+                execution_plan.add(
+                    jinja_env.from_string(revoke_role_select_on_object).render(
+                        role=role,
+                        object_type=info["sf_type"],
+                        database=info["db"],
+                        schema=info["schema"],
+                        object_name=info["name"],
+                    )
+                )
+
+    # === Phase 3: Per-grant loop (ALL grants + to_roles/to_users) ===
+    for grant in grants:
+        role = grant["role"]
+        read_on_schemas = grant.get("read_on_schemas", [])
+        to_roles = grant.get("to_roles", [])
+        to_users = grant.get("to_users", [])
+
+        # Emit ALL grants only when bootstrapping (future grants are being newly added)
+        for full_schema_path in read_on_schemas:
+            if (full_schema_path, role) not in schemas_needing_bootstrap:
+                continue
+            database, schema = full_schema_path.split(".")
+            execution_plan.add(
+                jinja_env.from_string(grant_role_read_on_tables_in_schema).render(
+                    role=role, database=database, schema=schema
+                )
             )
-            execution_plan.add(grant_select_on_object_statement)
+            execution_plan.add(
+                jinja_env.from_string(grant_role_read_on_views_in_schema).render(
+                    role=role, database=database, schema=schema
+                )
+            )
+            execution_plan.add(
+                jinja_env.from_string(
+                    grant_role_read_on_dynamic_tables_in_schema
+                ).render(role=role, database=database, schema=schema)
+            )
+            execution_plan.add(
+                jinja_env.from_string(
+                    grant_role_read_on_semantic_views_in_schema
+                ).render(role=role, database=database, schema=schema)
+            )
 
         # Grant and revoke roles to users and roles
         grant_of_role_state = state.get("of_roles", {}).get(role)
@@ -563,6 +889,7 @@ def _database_state(databases: list[dict], state: dict) -> dict:
         database["name"].lower(): {
             "data_retention_time_in_days": database["retention_time"],
             "transient": True if "transient" in database["options"].lower() else False,
+            "owner": database.get("owner", "").lower(),
         }
         for database in state["databases"]
         if database["name"].lower() in database_names
@@ -593,6 +920,7 @@ def _schema_state(databases: list[dict], state: dict) -> dict:
                             if "transient" in schema_state["options"].lower()
                             else False
                         ),
+                        "owner": schema_state.get("owner", "").lower(),
                         "schema": schema_state,
                     }
     return existing_state
@@ -610,6 +938,7 @@ def _warehouse_state(warehouses: list[dict], state: dict) -> dict:
             if warehouse_name == warehouse_state["name"].lower():
                 existing_state[warehouse_name] = {
                     "size": warehouse_state["size"].lower(),
+                    "owner": warehouse_state.get("owner", "").lower(),
                 }
     return existing_state
 
@@ -641,7 +970,9 @@ def _role_state(roles: list[dict], state: dict) -> dict:
         role_name = role["name"].lower()
         for role_state in state["roles"]:
             if role_name == role_state["name"].lower():
-                existing_state[role_name] = {}
+                existing_state[role_name] = {
+                    "owner": role_state.get("owner", "").lower(),
+                }
     return existing_state
 
 
@@ -817,9 +1148,34 @@ def overview(execution_plan: dict) -> dict:
 
     grant_selects = [s for s in execution_plan if "grant select on" in s and "in schema" in s]
     grant_select_on_objects = [s for s in execution_plan if "grant select on" in s and "in schema" not in s]
-    grant_create = [s for s in execution_plan if "grant create table" in s]
+    grant_create = [s for s in execution_plan if "grant create" in s]
     grant_roles = [s for s in execution_plan if "grant role" in s and "to role" in s]
     grant_users = [s for s in execution_plan if "grant role" in s and "to user" in s]
+    grant_warehouses = [
+        s for s in execution_plan if "grant usage on warehouse" in s
+    ]
+    grant_databases = [
+        s for s in execution_plan if "grant usage on database" in s
+    ]
+    grant_schemas = [
+        s for s in execution_plan if "grant usage on schema" in s
+    ]
+    revoke_warehouses = [
+        s for s in execution_plan if "revoke usage on warehouse" in s
+    ]
+    revoke_databases = [
+        s for s in execution_plan if "revoke usage on database" in s
+    ]
+    revoke_schemas = [
+        s for s in execution_plan if "revoke usage on schema" in s
+    ]
+    revoke_selects = [
+        s for s in execution_plan if "revoke select on" in s and "in schema" in s
+    ]
+    revoke_select_on_objects = [
+        s for s in execution_plan if "revoke select on" in s and "in schema" not in s
+    ]
+    revoke_create = [s for s in execution_plan if "revoke create" in s]
 
     revoke_roles = [
         s for s in execution_plan if "revoke role" in s and "from role" in s
@@ -845,6 +1201,15 @@ def overview(execution_plan: dict) -> dict:
         "grant_create": grant_create,
         "grant_roles": grant_roles,
         "grant_users": grant_users,
+        "grant_warehouses": grant_warehouses,
+        "grant_databases": grant_databases,
+        "grant_schemas": grant_schemas,
+        "revoke_warehouses": revoke_warehouses,
+        "revoke_databases": revoke_databases,
+        "revoke_schemas": revoke_schemas,
+        "revoke_selects": revoke_selects,
+        "revoke_select_on_objects": revoke_select_on_objects,
+        "revoke_create": revoke_create,
         "revoke_roles": revoke_roles,
         "revoke_users": revoke_users,
     }
