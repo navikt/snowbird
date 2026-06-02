@@ -143,8 +143,36 @@ def plan(config, silent, state, stateless, print_execution_plan):
 
         click.echo(f"Grant or revoke:")
         click.echo("----------------")
-        total_grants = len(grant_selects) + len(grant_select_on_objects) + len(grant_create) + len(grant_roles) + len(grant_users) + len(grant_warehouses) + len(grant_databases) + len(grant_schemas)
-        total_revokes = len(revoke_roles) + len(revoke_users) + len(revoke_warehouses) + len(revoke_databases) + len(revoke_schemas) + len(revoke_selects) + len(revoke_select_on_objects) + len(revoke_create)
+        total_grants = sum(
+            map(
+                len,
+                [
+                    grant_selects,
+                    grant_select_on_objects,
+                    grant_create,
+                    grant_roles,
+                    grant_users,
+                    grant_warehouses,
+                    grant_databases,
+                    grant_schemas,
+                ],
+            )
+        )
+        total_revokes = sum(
+            map(
+                len,
+                [
+                    revoke_roles,
+                    revoke_users,
+                    revoke_warehouses,
+                    revoke_databases,
+                    revoke_schemas,
+                    revoke_selects,
+                    revoke_select_on_objects,
+                    revoke_create,
+                ],
+            )
+        )
         click.echo(
             "Total:".ljust(20)
             + f"{str(total_grants).rjust(2)} grant, {str(total_revokes).rjust(3)} revoke\n"
