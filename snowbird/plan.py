@@ -126,7 +126,7 @@ grant_role_read_on_dynamic_tables_in_schema = """
 revoke_role_read_on_dynamic_tables_in_schema = """
     revoke select on all dynamic tables in schema {{ database }}.{{ schema }} from role {{ role }}
 """
-grant_role_future_read_on_dynamic_tabbles_in_schema = """
+grant_role_future_read_on_dynamic_tables_in_schema = """
     grant select on future dynamic tables in schema {{ database }}.{{ schema }} to role {{ role }}
 """
 revoke_role_future_read_on_dynamic_tables_in_schema = """
@@ -629,7 +629,7 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
         ),
         (
             "dynamic table",
-            grant_role_future_read_on_dynamic_tabbles_in_schema,
+            grant_role_future_read_on_dynamic_tables_in_schema,
             revoke_role_future_read_on_dynamic_tables_in_schema,
             revoke_role_read_on_dynamic_tables_in_schema,
         ),
