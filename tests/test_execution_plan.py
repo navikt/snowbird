@@ -2111,3 +2111,203 @@ def test_unmanaged_privilege_revoked_with_correct_grantee_type():
     result = set(execution_plan(config=config, state=state))
     assert 'revoke operate on warehouse wh1 from user "SOME_USER"' in result
     assert not any('from role "SOME_USER"' in s for s in result)
+
+
+def test_schema_single_pass_revokes_mixed_privileges():
+    """Schema diff revokes usage, create, and unmanaged privs in a single pass."""
+    config = {
+        "grants": [
+            {"role": "reader", "read_on_schemas": ["db1.sch1"]},
+        ]
+    }
+    state = {
+        "grants": {
+            "on_databases": {},
+            "on_schemas": {
+                "db1.sch1": [
+                    {
+                        "privilege": "USAGE",
+                        "grantee_name": "READER",
+                        "granted_to": "ROLE",
+                    },
+                    {
+                        "privilege": "USAGE",
+                        "grantee_name": "ROGUE",
+                        "granted_to": "ROLE",
+                    },
+                    {
+                        "privilege": "CREATE TABLE",
+                        "grantee_name": "ROGUE",
+                        "granted_to": "ROLE",
+                    },
+                    {
+                        "privilege": "MODIFY",
+                        "grantee_name": "ROGUE",
+                        "granted_to": "ROLE",
+                    },
+                    {
+                        "privilege": "MONITOR",
+                        "grantee_name": "SOME_USER",
+                        "granted_to": "USER",
+                    },
+                    {
+                        "privilege": "OWNERSHIP",
+                        "grantee_name": "SYSADMIN",
+                        "granted_to": "ROLE",
+                    },
+                ]
+            },
+            "future_in_schemas": {},
+            "on_objects": {},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert 'revoke usage on schema db1.sch1 from role "ROGUE"' in result
+    assert 'revoke create table on schema db1.sch1 from role "ROGUE"' in result
+    assert 'revoke modify on schema db1.sch1 from role "ROGUE"' in result
+    assert 'revoke monitor on schema db1.sch1 from user "SOME_USER"' in result
+    assert not any("revoke ownership" in s for s in result)
+    assert 'revoke usage on schema db1.sch1 from role "READER"' not in result
+
+
+def test_object_select_revokes_non_select_privileges():
+    """Object diff revokes non-select privileges dynamically from state."""
+    config = {
+        "grants": [
+            {"role": "reader", "read_on_objects": ["table:db1.sch1.tbl1"]},
+        ]
+    }
+    state = {
+        "grants": {
+            "on_databases": {},
+            "on_schemas": {},
+            "future_in_schemas": {},
+            "on_objects": {
+                "table:db1.sch1.tbl1": [
+                    {
+                        "privilege": "SELECT",
+                        "grantee_name": "READER",
+                        "granted_to": "ROLE",
+                    },
+                    {
+                        "privilege": "INSERT",
+                        "grantee_name": "WRITER",
+                        "granted_to": "ROLE",
+                    },
+                    {
+                        "privilege": "DELETE",
+                        "grantee_name": "SOME_USER",
+                        "granted_to": "USER",
+                    },
+                    {
+                        "privilege": "OWNERSHIP",
+                        "grantee_name": "SYSADMIN",
+                        "granted_to": "ROLE",
+                    },
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert 'revoke insert on table db1.sch1.tbl1 from role "WRITER"' in result
+    assert 'revoke delete on table db1.sch1.tbl1 from user "SOME_USER"' in result
+    assert not any("revoke ownership" in s for s in result)
+    assert not any("READER" in s and "revoke" in s for s in result)
+
+
+def test_future_grants_revokes_non_select_privileges():
+    """Future grants diff revokes non-select privileges dynamically from state."""
+    config = {
+        "grants": [
+            {"role": "reader", "read_on_schemas": ["db1.sch1"]},
+        ]
+    }
+    state = {
+        "grants": {
+            "on_databases": {},
+            "on_schemas": {},
+            "future_in_schemas": {
+                "db1.sch1": [
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "TABLE",
+                        "grantee_name": "READER",
+                    },
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "VIEW",
+                        "grantee_name": "READER",
+                    },
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "DYNAMIC_TABLE",
+                        "grantee_name": "READER",
+                    },
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "SEMANTIC_VIEW",
+                        "grantee_name": "READER",
+                    },
+                    {
+                        "privilege": "INSERT",
+                        "grant_on": "TABLE",
+                        "grantee_name": "ROGUE",
+                    },
+                ]
+            },
+            "on_objects": {},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert (
+        'revoke insert on future tables in schema db1.sch1 from role "ROGUE"' in result
+    )
+    assert 'revoke insert on all tables in schema db1.sch1 from role "ROGUE"' in result
+    assert not any("READER" in s and "revoke" in s for s in result)
+
+
+def test_future_grants_does_not_revoke_ownership():
+    """Future grants diff must never revoke OWNERSHIP."""
+    config = {
+        "grants": [
+            {"role": "reader", "read_on_schemas": ["db1.sch1"]},
+        ]
+    }
+    state = {
+        "grants": {
+            "on_databases": {},
+            "on_schemas": {},
+            "future_in_schemas": {
+                "db1.sch1": [
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "TABLE",
+                        "grantee_name": "READER",
+                    },
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "VIEW",
+                        "grantee_name": "READER",
+                    },
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "DYNAMIC_TABLE",
+                        "grantee_name": "READER",
+                    },
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "SEMANTIC_VIEW",
+                        "grantee_name": "READER",
+                    },
+                    {
+                        "privilege": "OWNERSHIP",
+                        "grant_on": "TABLE",
+                        "grantee_name": "SYSADMIN",
+                    },
+                ]
+            },
+            "on_objects": {},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert not any("revoke ownership" in s for s in result)

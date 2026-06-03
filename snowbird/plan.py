@@ -377,6 +377,20 @@ def _create_roles_execution_plan(roles: list[dict], state: dict) -> list[str]:
     return execution_plan
 
 
+def _actual_grants(grant_state: list[dict]) -> set[tuple[str, str, str]]:
+    """Build set of (privilege, grantee_type, grantee_name) from state, excluding OWNERSHIP."""
+    return {
+        (
+            g["privilege"].lower(),
+            g.get("granted_to", "ROLE").lower(),
+            g["grantee_name"].lower(),
+        )
+        for g in grant_state
+        if g["privilege"].lower() != "ownership"
+        and g.get("granted_to", "ROLE").lower() in ("role", "user")
+    }
+
+
 def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
     if len(grants) == 0:
         return []
@@ -437,125 +451,61 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
     on_warehouses_state = state.get("on_warehouses", {})
     for warehouse, desired_roles in desired_warehouse_roles.items():
         warehouse_grant_state = on_warehouses_state.get(warehouse)
+        desired = {("usage", "role", r) for r in desired_roles}
         if warehouse_grant_state is None:
-            for role in desired_roles:
-                stmt = jinja_env.from_string(grant_role_usage_on_warehouse).render(
-                    role=role, warehouse=warehouse
+            for priv, gtype, name in desired:
+                execution_plan.add(
+                    jinja_env.from_string(grant_role_usage_on_warehouse).render(
+                        role=name, warehouse=warehouse
+                    )
                 )
-                execution_plan.add(stmt)
         else:
-            actual_role_grantees = {
-                g["grantee_name"].lower()
-                for g in warehouse_grant_state
-                if g["privilege"].lower() == "usage"
-                and g.get("granted_to", "ROLE").lower() == "role"
-            }
-            actual_user_grantees = {
-                g["grantee_name"].lower()
-                for g in warehouse_grant_state
-                if g["privilege"].lower() == "usage"
-                and g.get("granted_to", "ROLE").lower() == "user"
-            }
-            for role in desired_roles - actual_role_grantees:
-                stmt = jinja_env.from_string(grant_role_usage_on_warehouse).render(
-                    role=role, warehouse=warehouse
+            actual = _actual_grants(warehouse_grant_state)
+            for priv, gtype, name in desired - actual:
+                execution_plan.add(
+                    jinja_env.from_string(grant_role_usage_on_warehouse).render(
+                        role=name, warehouse=warehouse
+                    )
                 )
-                execution_plan.add(stmt)
-            for grantee in actual_role_grantees - desired_roles:
+            for priv, gtype, name in actual - desired:
                 execution_plan.add(
                     jinja_env.from_string(revoke_privilege).render(
-                        privilege_clause=f"usage on warehouse {warehouse}",
-                        grantee_type="role",
-                        grantee_name=grantee,
+                        privilege_clause=f"{priv} on warehouse {warehouse}",
+                        grantee_type=gtype,
+                        grantee_name=name,
                     )
                 )
-            for grantee in actual_user_grantees:
-                execution_plan.add(
-                    jinja_env.from_string(revoke_privilege).render(
-                        privilege_clause=f"usage on warehouse {warehouse}",
-                        grantee_type="user",
-                        grantee_name=grantee,
-                    )
-                )
-            # Revoke unmanaged privileges (anything that isn't USAGE or OWNERSHIP)
-            for g in warehouse_grant_state:
-                priv = g["privilege"].lower()
-                grantee_type = g.get("granted_to", "ROLE").lower()
-                if priv not in ("usage", "ownership") and grantee_type in (
-                    "role",
-                    "user",
-                ):
-                    execution_plan.add(
-                        jinja_env.from_string(revoke_privilege).render(
-                            privilege_clause=f"{priv} on warehouse {warehouse}",
-                            grantee_type=grantee_type,
-                            grantee_name=g["grantee_name"].lower(),
-                        )
-                    )
 
     # --- Database USAGE ---
     on_databases_state = state.get("on_databases", {})
     for database, desired_roles in desired_database_roles.items():
         db_grant_state = on_databases_state.get(database)
+        desired = {("usage", "role", r) for r in desired_roles}
         if db_grant_state is None:
-            for role in desired_roles:
+            for priv, gtype, name in desired:
                 execution_plan.add(
                     jinja_env.from_string(grant_role_usage_on_database).render(
-                        role=role, database=database
+                        role=name, database=database
                     )
                 )
         else:
-            actual_role_grantees = {
-                g["grantee_name"].lower()
-                for g in db_grant_state
-                if g["privilege"].lower() == "usage"
-                and g.get("granted_to", "ROLE").lower() == "role"
-            }
-            actual_user_grantees = {
-                g["grantee_name"].lower()
-                for g in db_grant_state
-                if g["privilege"].lower() == "usage"
-                and g.get("granted_to", "ROLE").lower() == "user"
-            }
-            for role in desired_roles - actual_role_grantees:
+            actual = _actual_grants(db_grant_state)
+            for priv, gtype, name in desired - actual:
                 execution_plan.add(
                     jinja_env.from_string(grant_role_usage_on_database).render(
-                        role=role, database=database
+                        role=name, database=database
                     )
                 )
-            for grantee in actual_role_grantees - desired_roles:
+            for priv, gtype, name in actual - desired:
                 execution_plan.add(
                     jinja_env.from_string(revoke_privilege).render(
-                        privilege_clause=f"usage on database {database}",
-                        grantee_type="role",
-                        grantee_name=grantee,
+                        privilege_clause=f"{priv} on database {database}",
+                        grantee_type=gtype,
+                        grantee_name=name,
                     )
                 )
-            for grantee in actual_user_grantees:
-                execution_plan.add(
-                    jinja_env.from_string(revoke_privilege).render(
-                        privilege_clause=f"usage on database {database}",
-                        grantee_type="user",
-                        grantee_name=grantee,
-                    )
-                )
-            # Revoke unmanaged privileges
-            for g in db_grant_state:
-                priv = g["privilege"].lower()
-                grantee_type = g.get("granted_to", "ROLE").lower()
-                if priv not in ("usage", "ownership") and grantee_type in (
-                    "role",
-                    "user",
-                ):
-                    execution_plan.add(
-                        jinja_env.from_string(revoke_privilege).render(
-                            privilege_clause=f"{priv} on database {database}",
-                            grantee_type=grantee_type,
-                            grantee_name=g["grantee_name"].lower(),
-                        )
-                    )
 
-    # --- Schema USAGE ---
+    # --- Schema grants (USAGE + CREATE) ---
     on_schemas_state = state.get("on_schemas", {})
     create_types = [
         "table",
@@ -568,186 +518,135 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
         "row access policy",
         "procedure",
     ]
-    for schema_path, desired_roles in desired_schema_roles.items():
+    all_managed_schemas = set(desired_schema_roles.keys()) | set(desired_create.keys())
+    for schema_path in all_managed_schemas:
         database, schema = schema_path.split(".")
         schema_grant_state = on_schemas_state.get(schema_path)
-        if schema_grant_state is None:
-            for role in desired_roles:
-                execution_plan.add(
-                    jinja_env.from_string(grant_role_usage_on_schema).render(
-                        role=role, database=database, schema=schema
-                    )
-                )
-        else:
-            actual_role_grantees = {
-                g["grantee_name"].lower()
-                for g in schema_grant_state
-                if g["privilege"].lower() == "usage"
-                and g.get("granted_to", "ROLE").lower() == "role"
-            }
-            actual_user_grantees = {
-                g["grantee_name"].lower()
-                for g in schema_grant_state
-                if g["privilege"].lower() == "usage"
-                and g.get("granted_to", "ROLE").lower() == "user"
-            }
-            for role in desired_roles - actual_role_grantees:
-                execution_plan.add(
-                    jinja_env.from_string(grant_role_usage_on_schema).render(
-                        role=role, database=database, schema=schema
-                    )
-                )
-            for grantee in actual_role_grantees - desired_roles:
-                execution_plan.add(
-                    jinja_env.from_string(revoke_privilege).render(
-                        privilege_clause=f"usage on schema {database}.{schema}",
-                        grantee_type="role",
-                        grantee_name=grantee,
-                    )
-                )
-            for grantee in actual_user_grantees:
-                execution_plan.add(
-                    jinja_env.from_string(revoke_privilege).render(
-                        privilege_clause=f"usage on schema {database}.{schema}",
-                        grantee_type="user",
-                        grantee_name=grantee,
-                    )
-                )
-            # Revoke unmanaged privileges (not USAGE, not CREATE types, not OWNERSHIP)
-            managed_schema_privs = {"usage", "ownership"}
+
+        desired = set()
+        for role in desired_schema_roles.get(schema_path, set()):
+            desired.add(("usage", "role", role))
+        for role in desired_create.get(schema_path, set()):
             for ct in create_types:
-                managed_schema_privs.add(f"create {ct}")
-            for g in schema_grant_state:
-                priv = g["privilege"].lower()
-                grantee_type = g.get("granted_to", "ROLE").lower()
-                if priv not in managed_schema_privs and grantee_type in (
-                    "role",
-                    "user",
-                ):
+                desired.add((f"create {ct}", "role", role))
+
+        if schema_grant_state is None:
+            for priv, gtype, name in desired:
+                if priv == "usage":
                     execution_plan.add(
-                        jinja_env.from_string(revoke_privilege).render(
-                            privilege_clause=f"{priv} on schema {schema_path}",
-                            grantee_type=grantee_type,
-                            grantee_name=g["grantee_name"].lower(),
+                        jinja_env.from_string(grant_role_usage_on_schema).render(
+                            role=name, database=database, schema=schema
                         )
                     )
+                elif priv.startswith("create "):
+                    execution_plan.add(
+                        jinja_env.from_string(grant_role_create_on_schema).render(
+                            type=priv[7:],
+                            role=name,
+                            database=database,
+                            schema=schema,
+                        )
+                    )
+        else:
+            actual = _actual_grants(schema_grant_state)
+            for priv, gtype, name in desired - actual:
+                if priv == "usage":
+                    execution_plan.add(
+                        jinja_env.from_string(grant_role_usage_on_schema).render(
+                            role=name, database=database, schema=schema
+                        )
+                    )
+                elif priv.startswith("create "):
+                    execution_plan.add(
+                        jinja_env.from_string(grant_role_create_on_schema).render(
+                            type=priv[7:],
+                            role=name,
+                            database=database,
+                            schema=schema,
+                        )
+                    )
+            for priv, gtype, name in actual - desired:
+                execution_plan.add(
+                    jinja_env.from_string(revoke_privilege).render(
+                        privilege_clause=f"{priv} on schema {schema_path}",
+                        grantee_type=gtype,
+                        grantee_name=name,
+                    )
+                )
 
     # --- Future read grants (read_on_schemas) ---
     future_in_schemas_state = state.get("future_in_schemas", {})
-    future_grant_types = [
-        ("table", grant_role_future_read_on_tables_in_schema, "tables"),
-        ("view", grant_role_future_read_on_views_in_schema, "views"),
-        (
-            "dynamic table",
+    future_grant_map = {
+        "table": (grant_role_future_read_on_tables_in_schema, "tables"),
+        "view": (grant_role_future_read_on_views_in_schema, "views"),
+        "dynamic table": (
             grant_role_future_read_on_dynamic_tables_in_schema,
             "dynamic tables",
         ),
-        (
-            "semantic view",
+        "semantic view": (
             grant_role_future_read_on_semantic_views_in_schema,
             "semantic views",
         ),
-    ]
+    }
     # Track (schema_path, role) pairs that need new future grants — these also
     # need ALL grants to bootstrap existing objects in that schema.
     schemas_needing_bootstrap: set[tuple[str, str]] = set()
     for schema_path, desired_roles in desired_future_read.items():
         database, schema = schema_path.split(".")
         future_schema_state = future_in_schemas_state.get(schema_path)
-        for grant_on_type, grant_tmpl, type_plural in future_grant_types:
-            if future_schema_state is None:
-                for role in desired_roles:
-                    schemas_needing_bootstrap.add((schema_path, role))
-                    execution_plan.add(
-                        jinja_env.from_string(grant_tmpl).render(
-                            role=role, database=database, schema=schema
-                        )
-                    )
-            else:
-                actual_role_grantees = {
-                    g["grantee_name"].lower()
-                    for g in future_schema_state
-                    if g["privilege"].lower() == "select"
-                    and g["grant_on"].lower().replace("_", " ") == grant_on_type
-                }
-                for role in desired_roles - actual_role_grantees:
-                    schemas_needing_bootstrap.add((schema_path, role))
-                    execution_plan.add(
-                        jinja_env.from_string(grant_tmpl).render(
-                            role=role, database=database, schema=schema
-                        )
-                    )
-                for grantee in actual_role_grantees - desired_roles:
-                    execution_plan.add(
-                        jinja_env.from_string(revoke_privilege).render(
-                            privilege_clause=f"select on future {type_plural} in schema {database}.{schema}",
-                            grantee_type="role",
-                            grantee_name=grantee,
-                        )
-                    )
-                    # Also revoke on existing objects to clean up
-                    execution_plan.add(
-                        jinja_env.from_string(revoke_privilege).render(
-                            privilege_clause=f"select on all {type_plural} in schema {database}.{schema}",
-                            grantee_type="role",
-                            grantee_name=grantee,
-                        )
-                    )
 
-    # --- CREATE grants (write_on_schemas) ---
-    for schema_path, desired_roles in desired_create.items():
-        database, schema = schema_path.split(".")
-        schema_grant_state = on_schemas_state.get(schema_path)
-        for create_type in create_types:
-            privilege_name = f"create {create_type}"
-            if schema_grant_state is None:
-                for role in desired_roles:
-                    execution_plan.add(
-                        jinja_env.from_string(grant_role_create_on_schema).render(
-                            type=create_type,
-                            role=role,
-                            database=database,
-                            schema=schema,
-                        )
+        desired = {
+            ("select", grant_on_type, role)
+            for grant_on_type in future_grant_map
+            for role in desired_roles
+        }
+
+        if future_schema_state is None:
+            for priv, grant_on_type, role in desired:
+                schemas_needing_bootstrap.add((schema_path, role))
+                grant_tmpl = future_grant_map[grant_on_type][0]
+                execution_plan.add(
+                    jinja_env.from_string(grant_tmpl).render(
+                        role=role, database=database, schema=schema
                     )
-            else:
-                actual_role_grantees = {
-                    g["grantee_name"].lower()
-                    for g in schema_grant_state
-                    if g["privilege"].lower() == privilege_name
-                    and g.get("granted_to", "ROLE").lower() == "role"
-                }
-                actual_user_grantees = {
-                    g["grantee_name"].lower()
-                    for g in schema_grant_state
-                    if g["privilege"].lower() == privilege_name
-                    and g.get("granted_to", "").lower() == "user"
-                }
-                for role in desired_roles - actual_role_grantees:
-                    execution_plan.add(
-                        jinja_env.from_string(grant_role_create_on_schema).render(
-                            type=create_type,
-                            role=role,
-                            database=database,
-                            schema=schema,
-                        )
+                )
+        else:
+            actual = {
+                (
+                    g["privilege"].lower(),
+                    g["grant_on"].lower().replace("_", " "),
+                    g["grantee_name"].lower(),
+                )
+                for g in future_schema_state
+                if g["privilege"].lower() != "ownership"
+            }
+            for priv, grant_on_type, role in desired - actual:
+                schemas_needing_bootstrap.add((schema_path, role))
+                grant_tmpl = future_grant_map[grant_on_type][0]
+                execution_plan.add(
+                    jinja_env.from_string(grant_tmpl).render(
+                        role=role, database=database, schema=schema
                     )
-                for grantee in actual_role_grantees - desired_roles:
-                    execution_plan.add(
-                        jinja_env.from_string(revoke_privilege).render(
-                            privilege_clause=f"create {create_type} on schema {database}.{schema}",
-                            grantee_type="role",
-                            grantee_name=grantee,
-                        )
+                )
+            for priv, grant_on_type, grantee in actual - desired:
+                type_plural = future_grant_map.get(
+                    grant_on_type, (None, f"{grant_on_type}s")
+                )[1]
+                execution_plan.add(
+                    jinja_env.from_string(revoke_privilege).render(
+                        privilege_clause=f"{priv} on future {type_plural} in schema {database}.{schema}",
+                        grantee_type="role",
+                        grantee_name=grantee,
                     )
-                for grantee in actual_user_grantees:
-                    execution_plan.add(
-                        jinja_env.from_string(revoke_privilege).render(
-                            privilege_clause=f"create {create_type} on schema {database}.{schema}",
-                            grantee_type="user",
-                            grantee_name=grantee,
-                        )
+                )
+                # Also revoke on existing objects to clean up
+                execution_plan.add(
+                    jinja_env.from_string(revoke_privilege).render(
+                        privilege_clause=f"{priv} on all {type_plural} in schema {database}.{schema}",
+                        grantee_type="role",
+                        grantee_name=grantee,
                     )
+                )
 
     # --- Object SELECT grants (read_on_objects) ---
     on_objects_state = state.get("on_objects", {})
@@ -760,12 +659,16 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
         expanded_desired = explicitly_desired | desired_future_read.get(
             containing_schema, set()
         )
+        obj_fqn = f"{info['sf_type']} {info['db']}.{info['schema']}.{info['name']}"
+
+        desired_to_grant = {("select", "role", r) for r in explicitly_desired}
+        desired_to_keep = {("select", "role", r) for r in expanded_desired}
 
         if obj_state is None:
-            for role in explicitly_desired:
+            for priv, gtype, name in desired_to_grant:
                 execution_plan.add(
                     jinja_env.from_string(grant_role_select_on_object).render(
-                        role=role,
+                        role=name,
                         object_type=info["sf_type"],
                         database=info["db"],
                         schema=info["schema"],
@@ -773,42 +676,23 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
                     )
                 )
         else:
-            actual_role_grantees = {
-                g["grantee_name"].lower()
-                for g in obj_state
-                if g["privilege"].lower() == "select"
-                and g.get("granted_to", "ROLE").lower() == "role"
-            }
-            actual_user_grantees = {
-                g["grantee_name"].lower()
-                for g in obj_state
-                if g["privilege"].lower() == "select"
-                and g.get("granted_to", "").lower() == "user"
-            }
-            for role in explicitly_desired - actual_role_grantees:
+            actual = _actual_grants(obj_state)
+            for priv, gtype, name in desired_to_grant - actual:
                 execution_plan.add(
                     jinja_env.from_string(grant_role_select_on_object).render(
-                        role=role,
+                        role=name,
                         object_type=info["sf_type"],
                         database=info["db"],
                         schema=info["schema"],
                         object_name=info["name"],
                     )
                 )
-            for grantee in actual_role_grantees - expanded_desired:
+            for priv, gtype, name in actual - desired_to_keep:
                 execution_plan.add(
                     jinja_env.from_string(revoke_privilege).render(
-                        privilege_clause=f"select on {info['sf_type']} {info['db']}.{info['schema']}.{info['name']}",
-                        grantee_type="role",
-                        grantee_name=grantee,
-                    )
-                )
-            for grantee in actual_user_grantees:
-                execution_plan.add(
-                    jinja_env.from_string(revoke_privilege).render(
-                        privilege_clause=f"select on {info['sf_type']} {info['db']}.{info['schema']}.{info['name']}",
-                        grantee_type="user",
-                        grantee_name=grantee,
+                        privilege_clause=f"{priv} on {obj_fqn}",
+                        grantee_type=gtype,
+                        grantee_name=name,
                     )
                 )
 
