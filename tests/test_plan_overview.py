@@ -363,3 +363,19 @@ def test_revoke_users_overview():
     print(plan_overview)
     result = plan_overview.get("revoke_users")
     assert result == expected
+
+
+def test_revoke_other_overview():
+    plan = [
+        'revoke operate on warehouse wh1 from role "FOO"',
+        'revoke modify on database db1 from user "BAR"',
+        'revoke monitor on schema db1.sch1 from role "BAZ"',
+        'revoke usage on warehouse wh1 from role "OK"',
+    ]
+    plan_overview = overview(execution_plan=plan)
+    result = plan_overview.get("revoke_other")
+    assert len(result) == 3
+    assert 'revoke operate on warehouse wh1 from role "FOO"' in result
+    assert 'revoke modify on database db1 from user "BAR"' in result
+    assert 'revoke monitor on schema db1.sch1 from role "BAZ"' in result
+    assert 'revoke usage on warehouse wh1 from role "OK"' not in result

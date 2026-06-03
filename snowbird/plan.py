@@ -1098,6 +1098,19 @@ def overview(execution_plan: dict) -> dict:
     revoke_users = [
         s for s in execution_plan if "revoke role" in s and "from user" in s
     ]
+    categorized_revokes = set(
+        revoke_warehouses
+        + revoke_databases
+        + revoke_schemas
+        + revoke_selects
+        + revoke_select_on_objects
+        + revoke_create
+        + revoke_roles
+        + revoke_users
+    )
+    revoke_other = [
+        s for s in execution_plan if "revoke " in s and s not in categorized_revokes
+    ]
     return {
         "create_databases": create_databases,
         "modify_databases": modify_databases,
@@ -1127,4 +1140,5 @@ def overview(execution_plan: dict) -> dict:
         "revoke_create": revoke_create,
         "revoke_roles": revoke_roles,
         "revoke_users": revoke_users,
+        "revoke_other": revoke_other,
     }
