@@ -321,6 +321,16 @@ def test_grant_create_overview():
     assert result == expected
 
 
+def test_grant_create_not_in_create_schemas():
+    plan = [
+        "grant create table on schema foo.bar to role baz",
+        "grant create view on schema foo.bar to role baz",
+    ]
+    plan_overview = overview(execution_plan=plan)
+    assert plan_overview.get("create_schemas") == []
+    assert len(plan_overview.get("grant_create")) == 2
+
+
 def test_grant_roles_overview():
     plan = [
         "grant role bar to role foo",

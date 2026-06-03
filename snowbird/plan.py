@@ -1027,43 +1027,43 @@ def execution_plan(config: dict, state={}) -> list[str]:
 
 
 def overview(execution_plan: dict) -> dict:
-    create_databases = [s.split()[5] for s in execution_plan if "create database" in s]
+    create_databases = [s.split()[5] for s in execution_plan if s.startswith("create database")]
     create_transient_databases = [
-        s.split()[6] for s in execution_plan if "create transient database" in s
+        s.split()[6] for s in execution_plan if s.startswith("create transient database")
     ]
     create_databases.extend(create_transient_databases)
-    alter_databases = [s.split()[2] for s in execution_plan if "alter database" in s]
+    alter_databases = [s.split()[2] for s in execution_plan if s.startswith("alter database")]
     modify_databases = [d for d in alter_databases if d not in create_databases]
 
-    create_schemas = [s.split()[5] for s in execution_plan if "create schema" in s]
+    create_schemas = [s.split()[5] for s in execution_plan if s.startswith("create schema")]
     create_transient_schemas = [
-        s.split()[6] for s in execution_plan if "create transient schema" in s
+        s.split()[6] for s in execution_plan if s.startswith("create transient schema")
     ]
     create_schemas.extend(create_transient_schemas)
-    alter_schemas = [s for s in execution_plan if "alter schema" in s]
+    alter_schemas = [s for s in execution_plan if s.startswith("alter schema")]
     modify_schemas = [
         s.split()[2] for s in alter_schemas if s.split()[2] not in create_schemas
     ]
 
-    create_roles = [s.split()[5] for s in execution_plan if "create role" in s]
-    alter_roles = [s.split()[2] for s in execution_plan if "alter role" in s]
+    create_roles = [s.split()[5] for s in execution_plan if s.startswith("create role")]
+    alter_roles = [s.split()[2] for s in execution_plan if s.startswith("alter role")]
     modify_roles = [r for r in alter_roles if r not in create_roles]
 
-    create_users = [s.split()[5] for s in execution_plan if "create user" in s]
-    alter_users = [s.split()[2] for s in execution_plan if "alter user" in s]
+    create_users = [s.split()[5] for s in execution_plan if s.startswith("create user")]
+    alter_users = [s.split()[2] for s in execution_plan if s.startswith("alter user")]
     modify_users = [u for u in alter_users if u not in create_users]
 
     create_warehouses = [
-        s.split()[5] for s in execution_plan if "create warehouse" in s
+        s.split()[5] for s in execution_plan if s.startswith("create warehouse")
     ]
-    alter_warehouses = [s.split()[2] for s in execution_plan if "alter warehouse" in s]
+    alter_warehouses = [s.split()[2] for s in execution_plan if s.startswith("alter warehouse")]
     modify_warehouses = [w for w in alter_warehouses if w not in create_warehouses]
 
     create_network_policies = [
-        s.split()[6] for s in execution_plan if "create network policy" in s
+        s.split()[6] for s in execution_plan if s.startswith("create network policy")
     ]
     alter_network_policies = [
-        s.split()[3] for s in execution_plan if "alter network policy" in s
+        s.split()[3] for s in execution_plan if s.startswith("alter network policy")
     ]
     modify_network_policies = [
         s for s in alter_network_policies if s not in create_network_policies
