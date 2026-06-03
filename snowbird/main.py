@@ -90,6 +90,7 @@ def plan(config, silent, state, stateless, print_execution_plan):
     revoke_selects = plan_overview.get("revoke_selects", [])
     revoke_select_on_objects = plan_overview.get("revoke_select_on_objects", [])
     revoke_create = plan_overview.get("revoke_create", [])
+    revoke_other = plan_overview.get("revoke_other", [])
 
     if silent == False:
         click.echo("\nCreate or modify:")
@@ -170,6 +171,7 @@ def plan(config, silent, state, stateless, print_execution_plan):
                     revoke_selects,
                     revoke_select_on_objects,
                     revoke_create,
+                    revoke_other,
                 ],
             )
         )
@@ -209,6 +211,11 @@ def plan(config, silent, state, stateless, print_execution_plan):
             "Role to user:".ljust(20)
             + f"{str(len(grant_users)).rjust(2)} grant, {str(len(revoke_users)).rjust(3)} revoke"
         )
+        if revoke_other:
+            click.echo(
+                "Other:".ljust(20)
+                + f"{''.rjust(2)}        {str(len(revoke_other)).rjust(3)} revoke"
+            )
         click.echo("")
     if print_execution_plan == True:
         if not silent:

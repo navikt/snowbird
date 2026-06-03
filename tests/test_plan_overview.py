@@ -321,6 +321,16 @@ def test_grant_create_overview():
     assert result == expected
 
 
+def test_grant_create_not_in_create_schemas():
+    plan = [
+        "grant create table on schema foo.bar to role baz",
+        "grant create view on schema foo.bar to role baz",
+    ]
+    plan_overview = overview(execution_plan=plan)
+    assert plan_overview.get("create_schemas") == []
+    assert len(plan_overview.get("grant_create")) == 2
+
+
 def test_grant_roles_overview():
     plan = [
         "grant role bar to role foo",
@@ -363,3 +373,19 @@ def test_revoke_users_overview():
     print(plan_overview)
     result = plan_overview.get("revoke_users")
     assert result == expected
+
+
+def test_revoke_other_overview():
+    plan = [
+        'revoke operate on warehouse wh1 from role "FOO"',
+        'revoke modify on database db1 from user "BAR"',
+        'revoke monitor on schema db1.sch1 from role "BAZ"',
+        'revoke usage on warehouse wh1 from role "OK"',
+    ]
+    plan_overview = overview(execution_plan=plan)
+    result = plan_overview.get("revoke_other")
+    assert len(result) == 3
+    assert 'revoke operate on warehouse wh1 from role "FOO"' in result
+    assert 'revoke modify on database db1 from user "BAR"' in result
+    assert 'revoke monitor on schema db1.sch1 from role "BAZ"' in result
+    assert 'revoke usage on warehouse wh1 from role "OK"' not in result

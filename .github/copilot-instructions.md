@@ -64,6 +64,8 @@ Each phase begins with an explicit `USE ROLE` statement.
 
 ## Communication Style
 
+**Ask questions early and often.** The barrier to ask clarifying questions should be low. When something is unclear, ambiguous, or can be solved in multiple reasonable ways — ask before assuming.
+
 Always use caveman skills when applicable:
 
 - **caveman** — All responses in caveman mode (full intensity by default)
