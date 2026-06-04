@@ -1,6 +1,10 @@
 import pytest
 
-from snowbird.plan import UnmodifiableStateError, execution_plan
+from snowbird.plan import (
+    UnmanagedReferenceError,
+    UnmodifiableStateError,
+    execution_plan,
+)
 
 
 def test_create_database():
@@ -478,6 +482,7 @@ def test_create_role():
     expected = [
         "use role useradmin",
         "create role if not exists foo",
+        'grant role foo to role "SYSADMIN"',
     ]
     result = execution_plan(config)
     print(result)
@@ -645,11 +650,19 @@ def test_modifying_network_policy_blocked_network_rules():
 
 
 def test_grant_role_warehouse():
-    config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "warehouses": [{"name": "bar"}],
+        "grants": [{"role": "foo", "warehouses": ["bar"]}],
+    }
     expected = {
-        "use role useradmin",
-        "grant usage on warehouse bar to role foo",
+        "alter warehouse bar set warehouse_size = 'x-small'",
+        "create role if not exists foo",
+        "create warehouse if not exists bar with warehouse_size = 'x-small' auto_suspend = 30 initially_suspended = true",
         'grant role foo to role "SYSADMIN"',
+        "grant usage on warehouse bar to role foo",
+        "use role sysadmin",
+        "use role useradmin",
     }
     result = set(execution_plan(config))
     print(result)
@@ -657,12 +670,22 @@ def test_grant_role_warehouse():
 
 
 def test_grant_role_multiple_warehouses():
-    config = {"grants": [{"role": "foo", "warehouses": ["bar", "baz"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "warehouses": [{"name": "bar"}, {"name": "baz"}],
+        "grants": [{"role": "foo", "warehouses": ["bar", "baz"]}],
+    }
     expected = {
-        "use role useradmin",
+        "alter warehouse bar set warehouse_size = 'x-small'",
+        "alter warehouse baz set warehouse_size = 'x-small'",
+        "create role if not exists foo",
+        "create warehouse if not exists bar with warehouse_size = 'x-small' auto_suspend = 30 initially_suspended = true",
+        "create warehouse if not exists baz with warehouse_size = 'x-small' auto_suspend = 30 initially_suspended = true",
+        'grant role foo to role "SYSADMIN"',
         "grant usage on warehouse bar to role foo",
         "grant usage on warehouse baz to role foo",
-        'grant role foo to role "SYSADMIN"',
+        "use role sysadmin",
+        "use role useradmin",
     }
     result = set(execution_plan(config))
     print(result)
@@ -670,21 +693,31 @@ def test_grant_role_multiple_warehouses():
 
 
 def test_grant_role_write_on_schema():
-    config = {"grants": [{"role": "foo", "write_on_schemas": ["bar.baz"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "bar", "schemas": [{"name": "baz"}]}],
+        "grants": [{"role": "foo", "write_on_schemas": ["bar.baz"]}],
+    }
     expected = {
-        'grant role foo to role "SYSADMIN"',
-        "grant create dynamic table on schema bar.baz to role foo",
-        "grant create row access policy on schema bar.baz to role foo",
+        "alter database bar set data_retention_time_in_days = 7",
+        "alter schema bar.baz set data_retention_time_in_days = 7",
+        "create database if not exists bar",
+        "create role if not exists foo",
+        "create schema if not exists bar.baz",
         "grant create alert on schema bar.baz to role foo",
-        "grant create table on schema bar.baz to role foo",
-        "grant create procedure on schema bar.baz to role foo",
+        "grant create dynamic table on schema bar.baz to role foo",
         "grant create masking policy on schema bar.baz to role foo",
-        "use role useradmin",
-        "grant usage on database bar to role foo",
-        "grant usage on schema bar.baz to role foo",
+        "grant create procedure on schema bar.baz to role foo",
+        "grant create row access policy on schema bar.baz to role foo",
+        "grant create semantic view on schema bar.baz to role foo",
+        "grant create table on schema bar.baz to role foo",
         "grant create task on schema bar.baz to role foo",
         "grant create view on schema bar.baz to role foo",
-        "grant create semantic view on schema bar.baz to role foo",
+        'grant role foo to role "SYSADMIN"',
+        "grant usage on database bar to role foo",
+        "grant usage on schema bar.baz to role foo",
+        "use role sysadmin",
+        "use role useradmin",
     }
     result = set(execution_plan(config))
     print(result)
@@ -692,31 +725,43 @@ def test_grant_role_write_on_schema():
 
 
 def test_grant_role_write_on_multiple_schemas():
-    config = {"grants": [{"role": "foo", "write_on_schemas": ["bar.baz", "bar.qux"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "bar", "schemas": [{"name": "baz"}, {"name": "qux"}]}],
+        "grants": [{"role": "foo", "write_on_schemas": ["bar.baz", "bar.qux"]}],
+    }
     expected = {
-        "grant create row access policy on schema bar.baz to role foo",
+        "alter database bar set data_retention_time_in_days = 7",
+        "alter schema bar.baz set data_retention_time_in_days = 7",
+        "alter schema bar.qux set data_retention_time_in_days = 7",
+        "create database if not exists bar",
+        "create role if not exists foo",
+        "create schema if not exists bar.baz",
+        "create schema if not exists bar.qux",
+        "grant create alert on schema bar.baz to role foo",
+        "grant create alert on schema bar.qux to role foo",
+        "grant create dynamic table on schema bar.baz to role foo",
+        "grant create dynamic table on schema bar.qux to role foo",
+        "grant create masking policy on schema bar.baz to role foo",
+        "grant create masking policy on schema bar.qux to role foo",
+        "grant create procedure on schema bar.baz to role foo",
         "grant create procedure on schema bar.qux to role foo",
-        "grant create table on schema bar.baz to role foo",
-        "grant create table on schema bar.qux to role foo",
+        "grant create row access policy on schema bar.baz to role foo",
+        "grant create row access policy on schema bar.qux to role foo",
         "grant create semantic view on schema bar.baz to role foo",
         "grant create semantic view on schema bar.qux to role foo",
-        "grant usage on schema bar.qux to role foo",
-        "grant create row access policy on schema bar.qux to role foo",
-        "grant create alert on schema bar.qux to role foo",
-        "grant create dynamic table on schema bar.qux to role foo",
-        "grant create view on schema bar.qux to role foo",
-        "grant create masking policy on schema bar.qux to role foo",
-        "grant create view on schema bar.baz to role foo",
-        "grant usage on database bar to role foo",
-        "use role useradmin",
-        "grant usage on schema bar.baz to role foo",
+        "grant create table on schema bar.baz to role foo",
+        "grant create table on schema bar.qux to role foo",
         "grant create task on schema bar.baz to role foo",
-        'grant role foo to role "SYSADMIN"',
-        "grant create dynamic table on schema bar.baz to role foo",
-        "grant create alert on schema bar.baz to role foo",
-        "grant create masking policy on schema bar.baz to role foo",
-        "grant create procedure on schema bar.baz to role foo",
         "grant create task on schema bar.qux to role foo",
+        "grant create view on schema bar.baz to role foo",
+        "grant create view on schema bar.qux to role foo",
+        'grant role foo to role "SYSADMIN"',
+        "grant usage on database bar to role foo",
+        "grant usage on schema bar.baz to role foo",
+        "grant usage on schema bar.qux to role foo",
+        "use role sysadmin",
+        "use role useradmin",
     }
     result = set(execution_plan(config))
     print(result)
@@ -724,20 +769,30 @@ def test_grant_role_write_on_multiple_schemas():
 
 
 def test_grant_role_read_on_schema():
-    config = {"grants": [{"role": "foo", "read_on_schemas": ["bar.baz"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "bar", "schemas": [{"name": "baz"}]}],
+        "grants": [{"role": "foo", "read_on_schemas": ["bar.baz"]}],
+    }
     expected = {
-        "use role useradmin",
-        "grant usage on database bar to role foo",
-        "grant usage on schema bar.baz to role foo",
-        "grant select on all tables in schema bar.baz to role foo",
-        "grant select on future tables in schema bar.baz to role foo",
-        "grant select on all views in schema bar.baz to role foo",
-        "grant select on future views in schema bar.baz to role foo",
+        "alter database bar set data_retention_time_in_days = 7",
+        "alter schema bar.baz set data_retention_time_in_days = 7",
+        "create database if not exists bar",
+        "create role if not exists foo",
+        "create schema if not exists bar.baz",
         'grant role foo to role "SYSADMIN"',
         "grant select on all dynamic tables in schema bar.baz to role foo",
-        "grant select on future dynamic tables in schema bar.baz to role foo",
         "grant select on all semantic views in schema bar.baz to role foo",
+        "grant select on all tables in schema bar.baz to role foo",
+        "grant select on all views in schema bar.baz to role foo",
+        "grant select on future dynamic tables in schema bar.baz to role foo",
         "grant select on future semantic views in schema bar.baz to role foo",
+        "grant select on future tables in schema bar.baz to role foo",
+        "grant select on future views in schema bar.baz to role foo",
+        "grant usage on database bar to role foo",
+        "grant usage on schema bar.baz to role foo",
+        "use role sysadmin",
+        "use role useradmin",
     }
     result = set(execution_plan(config))
     print(result)
@@ -745,30 +800,41 @@ def test_grant_role_read_on_schema():
 
 
 def test_grant_role_read_on_multiple_schemas():
-    config = {"grants": [{"role": "foo", "read_on_schemas": ["bar.baz", "bar.qux"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "bar", "schemas": [{"name": "baz"}, {"name": "qux"}]}],
+        "grants": [{"role": "foo", "read_on_schemas": ["bar.baz", "bar.qux"]}],
+    }
     expected = {
-        "use role useradmin",
-        "grant usage on database bar to role foo",
-        "grant usage on schema bar.baz to role foo",
-        "grant select on all tables in schema bar.baz to role foo",
-        "grant select on future tables in schema bar.baz to role foo",
-        "grant select on all views in schema bar.baz to role foo",
-        "grant select on future views in schema bar.baz to role foo",
-        "grant usage on database bar to role foo",
-        "grant usage on schema bar.qux to role foo",
-        "grant select on all tables in schema bar.qux to role foo",
-        "grant select on future tables in schema bar.qux to role foo",
-        "grant select on all views in schema bar.qux to role foo",
-        "grant select on future views in schema bar.qux to role foo",
+        "alter database bar set data_retention_time_in_days = 7",
+        "alter schema bar.baz set data_retention_time_in_days = 7",
+        "alter schema bar.qux set data_retention_time_in_days = 7",
+        "create database if not exists bar",
+        "create role if not exists foo",
+        "create schema if not exists bar.baz",
+        "create schema if not exists bar.qux",
         'grant role foo to role "SYSADMIN"',
         "grant select on all dynamic tables in schema bar.baz to role foo",
-        "grant select on future dynamic tables in schema bar.baz to role foo",
         "grant select on all dynamic tables in schema bar.qux to role foo",
-        "grant select on future dynamic tables in schema bar.qux to role foo",
         "grant select on all semantic views in schema bar.baz to role foo",
-        "grant select on future semantic views in schema bar.baz to role foo",
         "grant select on all semantic views in schema bar.qux to role foo",
+        "grant select on all tables in schema bar.baz to role foo",
+        "grant select on all tables in schema bar.qux to role foo",
+        "grant select on all views in schema bar.baz to role foo",
+        "grant select on all views in schema bar.qux to role foo",
+        "grant select on future dynamic tables in schema bar.baz to role foo",
+        "grant select on future dynamic tables in schema bar.qux to role foo",
+        "grant select on future semantic views in schema bar.baz to role foo",
         "grant select on future semantic views in schema bar.qux to role foo",
+        "grant select on future tables in schema bar.baz to role foo",
+        "grant select on future tables in schema bar.qux to role foo",
+        "grant select on future views in schema bar.baz to role foo",
+        "grant select on future views in schema bar.qux to role foo",
+        "grant usage on database bar to role foo",
+        "grant usage on schema bar.baz to role foo",
+        "grant usage on schema bar.qux to role foo",
+        "use role sysadmin",
+        "use role useradmin",
     }
     result = set(execution_plan(config))
     print(result)
@@ -777,15 +843,14 @@ def test_grant_role_read_on_multiple_schemas():
 
 def test_grant_role_read_on_objects():
     config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "bar", "schemas": [{"name": "baz"}]}],
         "grants": [
             {
                 "role": "foo",
-                "read_on_objects": [
-                    "table:bar.baz.my_table",
-                    "view:bar.baz.my_view",
-                ],
+                "read_on_objects": ["table:bar.baz.my_table", "view:bar.baz.my_view"],
             }
-        ]
+        ],
     }
     result = set(execution_plan(config))
     # Should grant usage on parent db and schema
@@ -801,6 +866,8 @@ def test_grant_role_read_on_objects():
 
 def test_grant_role_read_on_objects_all_types():
     config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db", "schemas": [{"name": "sch"}]}],
         "grants": [
             {
                 "role": "foo",
@@ -811,7 +878,7 @@ def test_grant_role_read_on_objects_all_types():
                     "semantic_view:db.sch.sv1",
                 ],
             }
-        ]
+        ],
     }
     result = set(execution_plan(config))
     assert "grant select on table db.sch.t1 to role foo" in result
@@ -822,12 +889,9 @@ def test_grant_role_read_on_objects_all_types():
 
 def test_read_on_objects_invalid_type_prefix_raises_error():
     config = {
-        "grants": [
-            {
-                "role": "foo",
-                "read_on_objects": ["invalid_type:db.sch.obj"],
-            }
-        ]
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db", "schemas": [{"name": "sch"}]}],
+        "grants": [{"role": "foo", "read_on_objects": ["invalid_type:db.sch.obj"]}],
     }
     with pytest.raises(ValueError, match="Invalid input for object type"):
         execution_plan(config)
@@ -835,12 +899,8 @@ def test_read_on_objects_invalid_type_prefix_raises_error():
 
 def test_read_on_objects_missing_type_prefix_raises_error():
     config = {
-        "grants": [
-            {
-                "role": "foo",
-                "read_on_objects": ["db.sch.obj"],
-            }
-        ]
+        "roles": [{"name": "foo"}],
+        "grants": [{"role": "foo", "read_on_objects": ["db.sch.obj"]}],
     }
     with pytest.raises(
         ValueError,
@@ -851,12 +911,9 @@ def test_read_on_objects_missing_type_prefix_raises_error():
 
 def test_read_on_objects_invalid_path_raises_error():
     config = {
-        "grants": [
-            {
-                "role": "foo",
-                "read_on_objects": ["table:db.obj"],
-            }
-        ]
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db", "schemas": [{"name": "obj"}]}],
+        "grants": [{"role": "foo", "read_on_objects": ["table:db.obj"]}],
     }
     with pytest.raises(
         ValueError,
@@ -865,12 +922,92 @@ def test_read_on_objects_invalid_path_raises_error():
         execution_plan(config)
 
 
+def test_grant_referencing_unmanaged_role_raises_error():
+    config = {
+        "warehouses": [{"name": "bar"}],
+        "grants": [{"role": "foo", "warehouses": ["bar"]}],
+    }
+    with pytest.raises(UnmanagedReferenceError, match="role 'foo'.*not declared"):
+        execution_plan(config)
+
+
+def test_grant_referencing_unmanaged_warehouse_raises_error():
+    config = {
+        "roles": [{"name": "foo"}],
+        "grants": [{"role": "foo", "warehouses": ["bar"]}],
+    }
+    with pytest.raises(UnmanagedReferenceError, match="warehouse 'bar'.*not declared"):
+        execution_plan(config)
+
+
+def test_grant_referencing_unmanaged_schema_raises_error():
+    config = {
+        "roles": [{"name": "foo"}],
+        "grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}],
+    }
+    with pytest.raises(
+        UnmanagedReferenceError, match="schema 'db1.sch1'.*not declared"
+    ):
+        execution_plan(config)
+
+
+def test_managed_role_with_no_grants_gets_sysadmin():
+    config = {
+        "roles": [{"name": "orphan_role"}],
+    }
+    result = set(execution_plan(config))
+    assert 'grant role orphan_role to role "SYSADMIN"' in result
+
+
+def test_managed_role_with_no_grants_revokes_stale_assignments():
+    config = {
+        "roles": [{"name": "orphan_role"}],
+    }
+    state = {
+        "roles": [{"name": "orphan_role", "owner": "USERADMIN"}],
+        "grants": {
+            "of_roles": {
+                "orphan_role": [
+                    {"grantee_name": "STALE_ROLE", "granted_to": "ROLE"},
+                    {"grantee_name": "SYSADMIN", "granted_to": "ROLE"},
+                ]
+            }
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert 'revoke role orphan_role from role "STALE_ROLE"' in result
+    assert 'revoke role orphan_role from role "SYSADMIN"' not in result
+
+
+def test_managed_warehouse_with_no_grants_revokes_stale():
+    config = {
+        "warehouses": [{"name": "wh1"}],
+    }
+    state = {
+        "grants": {
+            "on_warehouses": {
+                "wh1": [
+                    {"privilege": "USAGE", "grantee_name": "STALE_ROLE"},
+                    {"privilege": "OWNERSHIP", "grantee_name": "SYSADMIN"},
+                ]
+            }
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert 'revoke usage on warehouse wh1 from role "STALE_ROLE"' in result
+    assert not any("revoke ownership" in s for s in result)
+
+
 def test_grant_role_to_role():
-    config = {"grants": [{"role": "foo", "to_roles": ["bar"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "grants": [{"role": "foo", "to_roles": ["bar"]}],
+    }
     expected = {
-        "use role useradmin",
+        "create role if not exists foo",
         'grant role foo to role "BAR"',
         'grant role foo to role "SYSADMIN"',
+        "use role useradmin",
     }
     result = set(execution_plan(config))
     print(result)
@@ -878,12 +1015,16 @@ def test_grant_role_to_role():
 
 
 def test_grant_role_to_multiple_roles():
-    config = {"grants": [{"role": "foo", "to_roles": ["bar", "baz"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "grants": [{"role": "foo", "to_roles": ["bar", "baz"]}],
+    }
     expected = {
-        "use role useradmin",
+        "create role if not exists foo",
         'grant role foo to role "BAR"',
         'grant role foo to role "BAZ"',
         'grant role foo to role "SYSADMIN"',
+        "use role useradmin",
     }
     result = set(execution_plan(config))
     print(result)
@@ -891,11 +1032,15 @@ def test_grant_role_to_multiple_roles():
 
 
 def test_grant_role_to_user():
-    config = {"grants": [{"role": "foo", "to_users": ["bar"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "grants": [{"role": "foo", "to_users": ["bar"]}],
+    }
     expected = {
-        "use role useradmin",
+        "create role if not exists foo",
         'grant role foo to role "SYSADMIN"',
         'grant role foo to user "BAR"',
+        "use role useradmin",
     }
     result = set(execution_plan(config))
     print(result)
@@ -903,12 +1048,16 @@ def test_grant_role_to_user():
 
 
 def test_grant_role_to_multiple_users():
-    config = {"grants": [{"role": "foo", "to_users": ["bar", "baz"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "grants": [{"role": "foo", "to_users": ["bar", "baz"]}],
+    }
     expected = {
-        "use role useradmin",
+        "create role if not exists foo",
         'grant role foo to role "SYSADMIN"',
         'grant role foo to user "BAR"',
         'grant role foo to user "BAZ"',
+        "use role useradmin",
     }
     result = set(execution_plan(config))
     print(result)
@@ -916,9 +1065,7 @@ def test_grant_role_to_multiple_users():
 
 
 def test_revoke_role_from_user():
-    config = {
-        "grants": [{"role": "foo"}],
-    }
+    config = {"roles": [{"name": "foo"}], "grants": [{"role": "foo"}]}
     state = {
         "grants": {
             "of_roles": {
@@ -932,9 +1079,10 @@ def test_revoke_role_from_user():
         },
     }
     expected = {
-        "use role useradmin",
-        'revoke role foo from user "BAR"',
+        "create role if not exists foo",
         'grant role foo to role "SYSADMIN"',
+        'revoke role foo from user "BAR"',
+        "use role useradmin",
     }
     result = set(execution_plan(config=config, state=state))
     print(result)
@@ -942,9 +1090,7 @@ def test_revoke_role_from_user():
 
 
 def test_revoke_role_from_role():
-    config = {
-        "grants": [{"role": "foo"}],
-    }
+    config = {"roles": [{"name": "foo"}], "grants": [{"role": "foo"}]}
     state = {
         "grants": {
             "of_roles": {
@@ -958,9 +1104,10 @@ def test_revoke_role_from_role():
         },
     }
     expected = {
-        "use role useradmin",
+        "create role if not exists foo",
         'grant role foo to role "SYSADMIN"',
         'revoke role foo from role "BAR"',
+        "use role useradmin",
     }
     result = set(execution_plan(config=config, state=state))
     print(result)
@@ -968,9 +1115,7 @@ def test_revoke_role_from_role():
 
 
 def test_not_revoking_role_from_sysadmin_when_not_explicily_defined():
-    config = {
-        "grants": [{"role": "foo"}],
-    }
+    config = {"roles": [{"name": "foo"}], "grants": [{"role": "foo"}]}
     state = {
         "grants": {
             "of_roles": {
@@ -983,7 +1128,7 @@ def test_not_revoking_role_from_sysadmin_when_not_explicily_defined():
             }
         },
     }
-    expected = []
+    expected = ["use role useradmin", "create role if not exists foo"]
     result = execution_plan(config=config, state=state)
     print(result)
     assert result == expected
@@ -991,9 +1136,14 @@ def test_not_revoking_role_from_sysadmin_when_not_explicily_defined():
 
 def test_explicit_granting_role_to_sysadmin_should_only_yield_one_grant_statement():
     config = {
+        "roles": [{"name": "foo"}],
         "grants": [{"role": "foo", "to_roles": ["sysadmin"]}],
     }
-    expected = ["use role useradmin", 'grant role foo to role "SYSADMIN"']
+    expected = [
+        "use role useradmin",
+        "create role if not exists foo",
+        'grant role foo to role "SYSADMIN"',
+    ]
     result = execution_plan(config=config)
     print(result)
     assert result == expected
@@ -1012,6 +1162,7 @@ def test_switching_executer_role():
         "alter schema foo.bar set data_retention_time_in_days = 7",
         "use role useradmin",
         "create role if not exists baz",
+        'grant role baz to role "SYSADMIN"',
     ]
     result = execution_plan(config)
     print(result)
@@ -1019,7 +1170,11 @@ def test_switching_executer_role():
 
 
 def test_grant_warehouse_skipped_when_already_exists():
-    config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "warehouses": [{"name": "bar"}],
+        "grants": [{"role": "foo", "warehouses": ["bar"]}],
+    }
     state = {
         "grants": {
             "on_warehouses": {
@@ -1030,8 +1185,12 @@ def test_grant_warehouse_skipped_when_already_exists():
         },
     }
     expected = {
-        "use role useradmin",
+        "alter warehouse bar set warehouse_size = 'x-small'",
+        "create role if not exists foo",
+        "create warehouse if not exists bar with warehouse_size = 'x-small' auto_suspend = 30 initially_suspended = true",
         'grant role foo to role "SYSADMIN"',
+        "use role sysadmin",
+        "use role useradmin",
     }
     result = set(execution_plan(config=config, state=state))
     print(result)
@@ -1039,14 +1198,22 @@ def test_grant_warehouse_skipped_when_already_exists():
 
 
 def test_grant_warehouse_when_not_in_state():
-    config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "warehouses": [{"name": "bar"}],
+        "grants": [{"role": "foo", "warehouses": ["bar"]}],
+    }
     state = {
         "grants": {"on_warehouses": {"bar": []}},
     }
     expected = {
-        "use role useradmin",
-        "grant usage on warehouse bar to role foo",
+        "alter warehouse bar set warehouse_size = 'x-small'",
+        "create role if not exists foo",
+        "create warehouse if not exists bar with warehouse_size = 'x-small' auto_suspend = 30 initially_suspended = true",
         'grant role foo to role "SYSADMIN"',
+        "grant usage on warehouse bar to role foo",
+        "use role sysadmin",
+        "use role useradmin",
     }
     result = set(execution_plan(config=config, state=state))
     print(result)
@@ -1054,7 +1221,11 @@ def test_grant_warehouse_when_not_in_state():
 
 
 def test_revoke_warehouse_from_unlisted_role():
-    config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "warehouses": [{"name": "bar"}],
+        "grants": [{"role": "foo", "warehouses": ["bar"]}],
+    }
     state = {
         "grants": {
             "on_warehouses": {
@@ -1066,9 +1237,13 @@ def test_revoke_warehouse_from_unlisted_role():
         },
     }
     expected = {
-        "use role useradmin",
+        "alter warehouse bar set warehouse_size = 'x-small'",
+        "create role if not exists foo",
+        "create warehouse if not exists bar with warehouse_size = 'x-small' auto_suspend = 30 initially_suspended = true",
         'grant role foo to role "SYSADMIN"',
         'revoke usage on warehouse bar from role "ROGUE_ROLE"',
+        "use role sysadmin",
+        "use role useradmin",
     }
     result = set(execution_plan(config=config, state=state))
     print(result)
@@ -1076,7 +1251,11 @@ def test_revoke_warehouse_from_unlisted_role():
 
 
 def test_revoke_warehouse_when_not_in_config():
-    config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "warehouses": [{"name": "bar"}],
+        "grants": [{"role": "foo", "warehouses": ["bar"]}],
+    }
     state = {
         "grants": {
             "on_warehouses": {
@@ -1087,10 +1266,14 @@ def test_revoke_warehouse_when_not_in_config():
         },
     }
     expected = {
-        "use role useradmin",
+        "alter warehouse bar set warehouse_size = 'x-small'",
+        "create role if not exists foo",
+        "create warehouse if not exists bar with warehouse_size = 'x-small' auto_suspend = 30 initially_suspended = true",
+        'grant role foo to role "SYSADMIN"',
         "grant usage on warehouse bar to role foo",
         'revoke usage on warehouse bar from role "BAZ"',
-        'grant role foo to role "SYSADMIN"',
+        "use role sysadmin",
+        "use role useradmin",
     }
     result = set(execution_plan(config=config, state=state))
     print(result)
@@ -1099,9 +1282,9 @@ def test_revoke_warehouse_when_not_in_config():
 
 def test_grant_and_revoke_warehouse_mixed():
     config = {
-        "grants": [
-            {"role": "foo", "warehouses": ["wh1", "wh2"]},
-        ]
+        "roles": [{"name": "foo"}],
+        "warehouses": [{"name": "wh1"}, {"name": "wh2"}],
+        "grants": [{"role": "foo", "warehouses": ["wh1", "wh2"]}],
     }
     state = {
         "grants": {
@@ -1115,10 +1298,16 @@ def test_grant_and_revoke_warehouse_mixed():
         },
     }
     expected = {
-        "use role useradmin",
+        "alter warehouse wh1 set warehouse_size = 'x-small'",
+        "alter warehouse wh2 set warehouse_size = 'x-small'",
+        "create role if not exists foo",
+        "create warehouse if not exists wh1 with warehouse_size = 'x-small' auto_suspend = 30 initially_suspended = true",
+        "create warehouse if not exists wh2 with warehouse_size = 'x-small' auto_suspend = 30 initially_suspended = true",
+        'grant role foo to role "SYSADMIN"',
         "grant usage on warehouse wh2 to role foo",
         'revoke usage on warehouse wh1 from role "OLD_ROLE"',
-        'grant role foo to role "SYSADMIN"',
+        "use role sysadmin",
+        "use role useradmin",
     }
     result = set(execution_plan(config=config, state=state))
     print(result)
@@ -1127,10 +1316,12 @@ def test_grant_and_revoke_warehouse_mixed():
 
 def test_warehouse_grants_aggregated_across_entries():
     config = {
+        "roles": [{"name": "foo"}, {"name": "bar"}],
+        "warehouses": [{"name": "wh1"}],
         "grants": [
             {"role": "foo", "warehouses": ["wh1"]},
             {"role": "bar", "warehouses": ["wh1"]},
-        ]
+        ],
     }
     state = {
         "grants": {
@@ -1148,7 +1339,11 @@ def test_warehouse_grants_aggregated_across_entries():
 
 
 def test_warehouse_ownership_not_revoked():
-    config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "warehouses": [{"name": "bar"}],
+        "grants": [{"role": "foo", "warehouses": ["bar"]}],
+    }
     state = {
         "grants": {
             "on_warehouses": {
@@ -1160,8 +1355,12 @@ def test_warehouse_ownership_not_revoked():
         },
     }
     expected = {
-        "use role useradmin",
+        "alter warehouse bar set warehouse_size = 'x-small'",
+        "create role if not exists foo",
+        "create warehouse if not exists bar with warehouse_size = 'x-small' auto_suspend = 30 initially_suspended = true",
         'grant role foo to role "SYSADMIN"',
+        "use role sysadmin",
+        "use role useradmin",
     }
     result = set(execution_plan(config=config, state=state))
     print(result)
@@ -1172,7 +1371,11 @@ def test_warehouse_ownership_not_revoked():
 
 
 def test_database_usage_skipped_when_already_exists():
-    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {
@@ -1209,7 +1412,11 @@ def test_database_usage_skipped_when_already_exists():
 
 
 def test_database_usage_granted_when_missing():
-    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {"db1": []},
@@ -1222,7 +1429,11 @@ def test_database_usage_granted_when_missing():
 
 
 def test_database_usage_revoked_from_unlisted_role():
-    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {
@@ -1242,10 +1453,12 @@ def test_database_usage_revoked_from_unlisted_role():
 
 def test_database_usage_aggregated_across_read_and_write():
     config = {
+        "roles": [{"name": "reader"}, {"name": "writer"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}, {"name": "sch2"}]}],
         "grants": [
             {"role": "reader", "read_on_schemas": ["db1.sch1"]},
             {"role": "writer", "write_on_schemas": ["db1.sch2"]},
-        ]
+        ],
     }
     state = {
         "grants": {
@@ -1268,7 +1481,11 @@ def test_database_usage_aggregated_across_read_and_write():
 
 
 def test_schema_usage_skipped_when_already_exists():
-    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {"db1": []},
@@ -1285,7 +1502,11 @@ def test_schema_usage_skipped_when_already_exists():
 
 
 def test_schema_usage_revoked_from_unlisted_role():
-    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {"db1": []},
@@ -1304,10 +1525,12 @@ def test_schema_usage_revoked_from_unlisted_role():
 
 def test_schema_usage_aggregated_across_read_and_write():
     config = {
+        "roles": [{"name": "reader"}, {"name": "writer"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
         "grants": [
             {"role": "reader", "read_on_schemas": ["db1.sch1"]},
             {"role": "writer", "write_on_schemas": ["db1.sch1"]},
-        ]
+        ],
     }
     state = {
         "grants": {
@@ -1328,9 +1551,9 @@ def test_schema_usage_aggregated_across_read_and_write():
 
 def test_schema_usage_aggregated_from_read_on_objects():
     config = {
-        "grants": [
-            {"role": "obj_reader", "read_on_objects": ["table:db1.sch1.t1"]},
-        ]
+        "roles": [{"name": "obj_reader"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "obj_reader", "read_on_objects": ["table:db1.sch1.t1"]}],
     }
     state = {
         "grants": {
@@ -1352,7 +1575,11 @@ def test_schema_usage_aggregated_from_read_on_objects():
 
 
 def test_future_read_skipped_when_already_exists():
-    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {"db1": []},
@@ -1389,7 +1616,11 @@ def test_future_read_skipped_when_already_exists():
 
 
 def test_future_read_granted_when_missing():
-    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {"db1": []},
@@ -1409,7 +1640,11 @@ def test_future_read_granted_when_missing():
 
 
 def test_future_read_revoked_from_unlisted_role():
-    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {"db1": []},
@@ -1485,7 +1720,11 @@ def test_future_read_revoked_from_unlisted_role():
 
 def test_all_grants_skipped_when_future_grants_already_exist():
     """ALL grants are skipped when all future grants already exist in state."""
-    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {
@@ -1532,7 +1771,11 @@ def test_all_grants_skipped_when_future_grants_already_exist():
 
 def test_all_grants_skipped_with_underscored_grant_on():
     """Snowflake returns DYNAMIC_TABLE/SEMANTIC_VIEW with underscores — must still match."""
-    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {"db1": [{"privilege": "USAGE", "grantee_name": "FOO"}]},
@@ -1576,7 +1819,11 @@ def test_all_grants_skipped_with_underscored_grant_on():
 
 def test_all_grants_emitted_when_future_grants_missing():
     """ALL grants are emitted when future grants are being newly added."""
-    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {"db1": []},
@@ -1595,7 +1842,11 @@ def test_all_grants_emitted_when_future_grants_missing():
 
 
 def test_create_grants_skipped_when_already_exists():
-    config = {"grants": [{"role": "foo", "write_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "write_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {"db1": []},
@@ -1619,7 +1870,11 @@ def test_create_grants_skipped_when_already_exists():
 
 
 def test_create_grants_granted_when_missing():
-    config = {"grants": [{"role": "foo", "write_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "write_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {"db1": []},
@@ -1634,7 +1889,11 @@ def test_create_grants_granted_when_missing():
 
 
 def test_create_grants_revoked_from_unlisted_role():
-    config = {"grants": [{"role": "foo", "write_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "write_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {"db1": []},
@@ -1656,7 +1915,11 @@ def test_create_grants_revoked_from_unlisted_role():
 
 def test_create_grants_partial_missing():
     """Some CREATE types exist, some don't — only grants the missing ones."""
-    config = {"grants": [{"role": "foo", "write_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "write_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {"db1": []},
@@ -1677,7 +1940,11 @@ def test_create_grants_partial_missing():
 
 
 def test_object_select_skipped_when_already_exists():
-    config = {"grants": [{"role": "foo", "read_on_objects": ["table:db1.sch1.t1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "read_on_objects": ["table:db1.sch1.t1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {"db1": []},
@@ -1694,7 +1961,11 @@ def test_object_select_skipped_when_already_exists():
 
 
 def test_object_select_granted_when_missing():
-    config = {"grants": [{"role": "foo", "read_on_objects": ["table:db1.sch1.t1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "read_on_objects": ["table:db1.sch1.t1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {"db1": []},
@@ -1707,7 +1978,11 @@ def test_object_select_granted_when_missing():
 
 
 def test_object_select_revoked_from_unlisted_role():
-    config = {"grants": [{"role": "foo", "read_on_objects": ["table:db1.sch1.t1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "read_on_objects": ["table:db1.sch1.t1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {"db1": []},
@@ -1728,10 +2003,12 @@ def test_object_select_revoked_from_unlisted_role():
 def test_object_select_not_revoked_when_covered_by_read_on_schemas():
     """A role with read_on_schemas should not have its object SELECT revoked."""
     config = {
+        "roles": [{"name": "analyst"}, {"name": "special"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
         "grants": [
             {"role": "analyst", "read_on_schemas": ["db1.sch1"]},
             {"role": "special", "read_on_objects": ["table:db1.sch1.t1"]},
-        ]
+        ],
     }
     state = {
         "grants": {
@@ -1758,10 +2035,12 @@ def test_object_select_not_revoked_when_covered_by_read_on_schemas():
 def test_object_select_revoked_when_not_covered_by_schema_or_object():
     """A role not in read_on_schemas or read_on_objects should be revoked."""
     config = {
+        "roles": [{"name": "analyst"}, {"name": "special"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
         "grants": [
             {"role": "analyst", "read_on_schemas": ["db1.sch1"]},
             {"role": "special", "read_on_objects": ["table:db1.sch1.t1"]},
-        ]
+        ],
     }
     state = {
         "grants": {
@@ -1787,6 +2066,9 @@ def test_object_select_revoked_when_not_covered_by_schema_or_object():
 def test_stateless_mode_grants_unconditionally():
     """When no state is provided, all grants are emitted unconditionally."""
     config = {
+        "roles": [{"name": "foo"}],
+        "warehouses": [{"name": "wh1"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}, {"name": "sch2"}]}],
         "grants": [
             {
                 "role": "foo",
@@ -1795,7 +2077,7 @@ def test_stateless_mode_grants_unconditionally():
                 "read_on_objects": ["table:db1.sch1.t1"],
                 "warehouses": ["wh1"],
             }
-        ]
+        ],
     }
     result = set(execution_plan(config=config))
     assert "grant usage on database db1 to role foo" in result
@@ -1915,7 +2197,11 @@ def test_role_ownership_not_transferred_when_correct():
 
 
 def test_unmanaged_privilege_revoked_on_database():
-    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {
@@ -1939,7 +2225,11 @@ def test_unmanaged_privilege_revoked_on_database():
 
 
 def test_unmanaged_privilege_revoked_on_warehouse():
-    config = {"grants": [{"role": "foo", "warehouses": ["wh1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "warehouses": [{"name": "wh1"}],
+        "grants": [{"role": "foo", "warehouses": ["wh1"]}],
+    }
     state = {
         "grants": {
             "on_warehouses": {
@@ -1961,10 +2251,12 @@ def test_unmanaged_privilege_revoked_on_warehouse():
 
 def test_unmanaged_privilege_revoked_on_schema():
     config = {
+        "roles": [{"name": "foo"}, {"name": "bar"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
         "grants": [
             {"role": "foo", "read_on_schemas": ["db1.sch1"]},
             {"role": "bar", "write_on_schemas": ["db1.sch1"]},
-        ]
+        ],
     }
     state = {
         "grants": {
@@ -1991,7 +2283,11 @@ def test_unmanaged_privilege_revoked_on_schema():
 
 def test_unmanaged_privilege_not_revoked_without_state():
     """When no state is available, nothing should be revoked."""
-    config = {"grants": [{"role": "foo", "warehouses": ["wh1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "warehouses": [{"name": "wh1"}],
+        "grants": [{"role": "foo", "warehouses": ["wh1"]}],
+    }
     result = set(execution_plan(config=config))
     assert not any("revoke" in s for s in result)
 
@@ -2001,7 +2297,11 @@ def test_unmanaged_privilege_not_revoked_without_state():
 
 def test_revoke_warehouse_usage_from_user_grantee():
     """User-level resource grants are unmanaged and should be revoked with proper SQL."""
-    config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "warehouses": [{"name": "bar"}],
+        "grants": [{"role": "foo", "warehouses": ["bar"]}],
+    }
     state = {
         "grants": {
             "on_warehouses": {
@@ -2022,7 +2322,11 @@ def test_revoke_warehouse_usage_from_user_grantee():
 
 
 def test_revoke_database_usage_from_user_grantee():
-    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {
@@ -2045,7 +2349,11 @@ def test_revoke_database_usage_from_user_grantee():
 
 
 def test_revoke_schema_usage_from_user_grantee():
-    config = {"grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "foo", "read_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {"db1": []},
@@ -2069,7 +2377,11 @@ def test_revoke_schema_usage_from_user_grantee():
 
 def test_user_grantee_not_included_in_role_diff():
     """User grantees should not interfere with role grant/revoke diffing."""
-    config = {"grants": [{"role": "foo", "warehouses": ["bar"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "warehouses": [{"name": "bar"}],
+        "grants": [{"role": "foo", "warehouses": ["bar"]}],
+    }
     state = {
         "grants": {
             "on_warehouses": {
@@ -2093,7 +2405,11 @@ def test_user_grantee_not_included_in_role_diff():
 
 def test_unmanaged_privilege_revoked_with_correct_grantee_type():
     """Unmanaged privileges should use correct grantee type from state."""
-    config = {"grants": [{"role": "foo", "warehouses": ["wh1"]}]}
+    config = {
+        "roles": [{"name": "foo"}],
+        "warehouses": [{"name": "wh1"}],
+        "grants": [{"role": "foo", "warehouses": ["wh1"]}],
+    }
     state = {
         "grants": {
             "on_warehouses": {
@@ -2116,9 +2432,9 @@ def test_unmanaged_privilege_revoked_with_correct_grantee_type():
 def test_schema_single_pass_revokes_mixed_privileges():
     """Schema diff revokes usage, create, and unmanaged privs in a single pass."""
     config = {
-        "grants": [
-            {"role": "reader", "read_on_schemas": ["db1.sch1"]},
-        ]
+        "roles": [{"name": "reader"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "reader", "read_on_schemas": ["db1.sch1"]}],
     }
     state = {
         "grants": {
@@ -2173,9 +2489,9 @@ def test_schema_single_pass_revokes_mixed_privileges():
 def test_object_select_revokes_non_select_privileges():
     """Object diff revokes non-select privileges dynamically from state."""
     config = {
-        "grants": [
-            {"role": "reader", "read_on_objects": ["table:db1.sch1.tbl1"]},
-        ]
+        "roles": [{"name": "reader"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "reader", "read_on_objects": ["table:db1.sch1.tbl1"]}],
     }
     state = {
         "grants": {
@@ -2218,9 +2534,9 @@ def test_object_select_revokes_non_select_privileges():
 def test_future_grants_revokes_non_select_privileges():
     """Future grants diff revokes non-select privileges dynamically from state."""
     config = {
-        "grants": [
-            {"role": "reader", "read_on_schemas": ["db1.sch1"]},
-        ]
+        "roles": [{"name": "reader"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "reader", "read_on_schemas": ["db1.sch1"]}],
     }
     state = {
         "grants": {
@@ -2268,7 +2584,11 @@ def test_future_grants_revokes_non_select_privileges():
 
 def test_future_read_revoked_when_only_write_on_schemas():
     """Future read grants must be revoked when schema is only in write_on_schemas."""
-    config = {"grants": [{"role": "writer", "write_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "writer"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "writer", "write_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {"db1": []},
@@ -2338,9 +2658,9 @@ def test_future_read_revoked_when_only_write_on_schemas():
 def test_future_read_revoked_when_only_read_on_objects():
     """Future read grants must be revoked when schema is only in read_on_objects."""
     config = {
-        "grants": [
-            {"role": "obj_reader", "read_on_objects": ["table:db1.sch1.t1"]}
-        ]
+        "roles": [{"name": "obj_reader"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "obj_reader", "read_on_objects": ["table:db1.sch1.t1"]}],
     }
     state = {
         "grants": {
@@ -2377,10 +2697,12 @@ def test_future_read_revoked_when_only_read_on_objects():
 def test_future_read_no_regression_with_read_and_write():
     """Schema in both read_on_schemas and write_on_schemas: future reads preserved."""
     config = {
+        "roles": [{"name": "reader"}, {"name": "writer"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
         "grants": [
             {"role": "reader", "read_on_schemas": ["db1.sch1"]},
             {"role": "writer", "write_on_schemas": ["db1.sch1"]},
-        ]
+        ],
     }
     state = {
         "grants": {
@@ -2416,14 +2738,16 @@ def test_future_read_no_regression_with_read_and_write():
     # reader's future grants should NOT be revoked
     assert not any("revoke" in s and "reader" in s.lower() for s in result)
     # writer should NOT get future read grants
-    assert not any(
-        "grant select on future" in s and "writer" in s for s in result
-    )
+    assert not any("grant select on future" in s and "writer" in s for s in result)
 
 
 def test_future_read_writer_role_revoked_on_write_only_schema():
     """Writer role's stale future read grants revoked on write-only schema."""
-    config = {"grants": [{"role": "writer", "write_on_schemas": ["db1.sch1"]}]}
+    config = {
+        "roles": [{"name": "writer"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "writer", "write_on_schemas": ["db1.sch1"]}],
+    }
     state = {
         "grants": {
             "on_databases": {"db1": []},
@@ -2449,9 +2773,9 @@ def test_future_read_writer_role_revoked_on_write_only_schema():
 def test_future_grants_does_not_revoke_ownership():
     """Future grants diff must never revoke OWNERSHIP."""
     config = {
-        "grants": [
-            {"role": "reader", "read_on_schemas": ["db1.sch1"]},
-        ]
+        "roles": [{"name": "reader"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "reader", "read_on_schemas": ["db1.sch1"]}],
     }
     state = {
         "grants": {

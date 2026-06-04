@@ -144,6 +144,10 @@ class UnmodifiableStateError(Exception):
     pass
 
 
+class UnmanagedReferenceError(Exception):
+    pass
+
+
 def load_config(path: str) -> dict:
     with open(path) as file:
         file_content = file.read().lower()
@@ -164,6 +168,44 @@ def _parse_object_type(type_input: str) -> tuple[str, str]:
         raise ValueError(
             f"Invalid input for object type, type must be one of {valid_types}, followed by a colon and a fully qualified object name (for example: table:my_database.my_schema.my_table)"
         )
+
+
+def _validate_grant_references(
+    grants: list[dict],
+    managed_warehouses: set[str],
+    managed_databases: set[str],
+    managed_schemas: set[str],
+    managed_roles: set[str],
+):
+    for grant in grants:
+        role = grant["role"].lower()
+        if role not in managed_roles:
+            raise UnmanagedReferenceError(
+                f"Grant references role '{grant['role']}' which is not declared in the 'roles' section"
+            )
+        for wh in grant.get("warehouses", []):
+            if wh.lower() not in managed_warehouses:
+                raise UnmanagedReferenceError(
+                    f"Grant references warehouse '{wh}' which is not declared in the 'warehouses' section"
+                )
+        for schema_path in grant.get("read_on_schemas", []) + grant.get(
+            "write_on_schemas", []
+        ):
+            if schema_path.lower() not in managed_schemas:
+                raise UnmanagedReferenceError(
+                    f"Grant references schema '{schema_path}' which is not declared in the 'databases' section"
+                )
+        for obj in grant.get("read_on_objects", []):
+            if ":" not in obj:
+                continue
+            _, obj_path = obj.split(":", 1)
+            parts = obj_path.split(".")
+            if len(parts) >= 2:
+                schema_key = f"{parts[0]}.{parts[1]}".lower()
+                if schema_key not in managed_schemas:
+                    raise UnmanagedReferenceError(
+                        f"Grant references object in schema '{schema_key}' which is not declared in the 'databases' section"
+                    )
 
 
 def _create_databases_execution_plan(databases: list[dict], state: dict) -> list[str]:
@@ -391,8 +433,19 @@ def _actual_grants(grant_state: list[dict]) -> set[tuple[str, str, str]]:
     }
 
 
-def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
-    if len(grants) == 0:
+def _grant_role_execution_plan(
+    grants: list[dict],
+    state: dict,
+    managed_warehouses: set[str],
+    managed_databases: set[str],
+    managed_schemas: set[str],
+) -> list[str]:
+    if (
+        len(grants) == 0
+        and not managed_warehouses
+        and not managed_databases
+        and not managed_schemas
+    ):
         return []
     execution_plan = set()
 
@@ -449,7 +502,9 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
 
     # --- Warehouse USAGE ---
     on_warehouses_state = state.get("on_warehouses", {})
-    for warehouse, desired_roles in desired_warehouse_roles.items():
+    all_warehouses_to_diff = managed_warehouses | set(desired_warehouse_roles.keys())
+    for warehouse in all_warehouses_to_diff:
+        desired_roles = desired_warehouse_roles.get(warehouse, set())
         warehouse_grant_state = on_warehouses_state.get(warehouse)
         desired = {("usage", "role", r) for r in desired_roles}
         if warehouse_grant_state is None:
@@ -478,7 +533,9 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
 
     # --- Database USAGE ---
     on_databases_state = state.get("on_databases", {})
-    for database, desired_roles in desired_database_roles.items():
+    all_databases_to_diff = managed_databases | set(desired_database_roles.keys())
+    for database in all_databases_to_diff:
+        desired_roles = desired_database_roles.get(database, set())
         db_grant_state = on_databases_state.get(database)
         desired = {("usage", "role", r) for r in desired_roles}
         if db_grant_state is None:
@@ -518,7 +575,9 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
         "row access policy",
         "procedure",
     ]
-    all_managed_schemas = set(desired_schema_roles.keys()) | set(desired_create.keys())
+    all_managed_schemas = (
+        set(desired_schema_roles.keys()) | set(desired_create.keys()) | managed_schemas
+    )
     for schema_path in all_managed_schemas:
         database, schema = schema_path.split(".")
         schema_grant_state = on_schemas_state.get(schema_path)
@@ -991,6 +1050,29 @@ def execution_plan(config: dict, state={}) -> list[str]:
     roles = config.get("roles", [])
     grants = config.get("grants", [])
     network_policies = config.get("network_policies", [])
+
+    managed_warehouse_names = {wh["name"].lower() for wh in warehouses}
+    managed_database_names = {db["name"].lower() for db in databases}
+    managed_schema_names: set[str] = set()
+    for db in databases:
+        for schema in db.get("schemas", []):
+            managed_schema_names.add(f"{db['name'].lower()}.{schema['name'].lower()}")
+    managed_role_names = {r["name"].lower() for r in roles}
+
+    _validate_grant_references(
+        grants,
+        managed_warehouse_names,
+        managed_database_names,
+        managed_schema_names,
+        managed_role_names,
+    )
+
+    # Add synthetic grant entries for managed roles without explicit grants
+    grant_role_names = {g["role"].lower() for g in grants}
+    for role in roles:
+        if role["name"].lower() not in grant_role_names:
+            grants.append({"role": role["name"]})
+
     _append_grant_roles_to_sysadmin(grants=grants)
 
     databases_state = _database_state(databases, state)
@@ -1025,7 +1107,15 @@ def execution_plan(config: dict, state={}) -> list[str]:
     plan.extend(_create_users_execution_plan(users=users, state=users_state))
     plan.extend(_create_roles_execution_plan(roles=roles, state=roles_state))
 
-    plan.extend(_grant_role_execution_plan(grants=grants, state=grants_state))
+    plan.extend(
+        _grant_role_execution_plan(
+            grants=grants,
+            state=grants_state,
+            managed_warehouses=managed_warehouse_names,
+            managed_databases=managed_database_names,
+            managed_schemas=managed_schema_names,
+        )
+    )
     if len(plan) > plan_len:
         plan.insert(plan_len, use_useradmin)
 
@@ -1034,15 +1124,23 @@ def execution_plan(config: dict, state={}) -> list[str]:
 
 
 def overview(execution_plan: dict) -> dict:
-    create_databases = [s.split()[5] for s in execution_plan if s.startswith("create database")]
+    create_databases = [
+        s.split()[5] for s in execution_plan if s.startswith("create database")
+    ]
     create_transient_databases = [
-        s.split()[6] for s in execution_plan if s.startswith("create transient database")
+        s.split()[6]
+        for s in execution_plan
+        if s.startswith("create transient database")
     ]
     create_databases.extend(create_transient_databases)
-    alter_databases = [s.split()[2] for s in execution_plan if s.startswith("alter database")]
+    alter_databases = [
+        s.split()[2] for s in execution_plan if s.startswith("alter database")
+    ]
     modify_databases = [d for d in alter_databases if d not in create_databases]
 
-    create_schemas = [s.split()[5] for s in execution_plan if s.startswith("create schema")]
+    create_schemas = [
+        s.split()[5] for s in execution_plan if s.startswith("create schema")
+    ]
     create_transient_schemas = [
         s.split()[6] for s in execution_plan if s.startswith("create transient schema")
     ]
@@ -1063,7 +1161,9 @@ def overview(execution_plan: dict) -> dict:
     create_warehouses = [
         s.split()[5] for s in execution_plan if s.startswith("create warehouse")
     ]
-    alter_warehouses = [s.split()[2] for s in execution_plan if s.startswith("alter warehouse")]
+    alter_warehouses = [
+        s.split()[2] for s in execution_plan if s.startswith("alter warehouse")
+    ]
     modify_warehouses = [w for w in alter_warehouses if w not in create_warehouses]
 
     create_network_policies = [

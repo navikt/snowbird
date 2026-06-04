@@ -19,12 +19,9 @@ def _get_role_grants(roles: list[dict], cursor: SnowflakeCursor) -> dict:
 
 
 def _get_warehouse_grants(
-    grants_config: list[dict], cursor: SnowflakeCursor
+    warehouses_config: list[dict], cursor: SnowflakeCursor
 ) -> dict:
-    managed_warehouses: set[str] = set()
-    for grant in grants_config:
-        for wh in grant.get("warehouses", []):
-            managed_warehouses.add(wh.lower())
+    managed_warehouses: set[str] = {wh["name"].lower() for wh in warehouses_config}
 
     warehouse_grants: dict = {}
     for warehouse in managed_warehouses:
@@ -36,18 +33,8 @@ def _get_warehouse_grants(
     return warehouse_grants
 
 
-def _get_database_grants(
-    grants_config: list[dict], cursor: SnowflakeCursor
-) -> dict:
-    managed_databases: set[str] = set()
-    for grant in grants_config:
-        for schema_path in grant.get("read_on_schemas", []) + grant.get(
-            "write_on_schemas", []
-        ):
-            managed_databases.add(schema_path.split(".")[0].lower())
-        for obj in grant.get("read_on_objects", []):
-            _, obj_path = obj.split(":", 1)
-            managed_databases.add(obj_path.split(".")[0].lower())
+def _get_database_grants(databases_config: list[dict], cursor: SnowflakeCursor) -> dict:
+    managed_databases: set[str] = {db["name"].lower() for db in databases_config}
 
     database_grants: dict = {}
     for database in managed_databases:
@@ -59,20 +46,12 @@ def _get_database_grants(
     return database_grants
 
 
-def _get_schema_grants(
-    grants_config: list[dict], cursor: SnowflakeCursor
-) -> dict:
+def _get_schema_grants(databases_config: list[dict], cursor: SnowflakeCursor) -> dict:
     managed_schemas: set[str] = set()
-    for grant in grants_config:
-        for schema_path in grant.get("read_on_schemas", []) + grant.get(
-            "write_on_schemas", []
-        ):
-            managed_schemas.add(schema_path.lower())
-        for obj in grant.get("read_on_objects", []):
-            _, obj_path = obj.split(":", 1)
-            parts = obj_path.split(".")
-            if len(parts) >= 3:
-                managed_schemas.add(f"{parts[0]}.{parts[1]}".lower())
+    for db in databases_config:
+        db_name = db["name"].lower()
+        for schema in db.get("schemas", []):
+            managed_schemas.add(f"{db_name}.{schema['name'].lower()}")
 
     schema_grants: dict = {}
     for schema_path in managed_schemas:
@@ -85,19 +64,13 @@ def _get_schema_grants(
 
 
 def _get_future_schema_grants(
-    grants_config: list[dict], cursor: SnowflakeCursor
+    databases_config: list[dict], cursor: SnowflakeCursor
 ) -> dict:
     managed_schemas: set[str] = set()
-    for grant in grants_config:
-        for schema_path in grant.get("read_on_schemas", []) + grant.get(
-            "write_on_schemas", []
-        ):
-            managed_schemas.add(schema_path.lower())
-        for obj in grant.get("read_on_objects", []):
-            _, obj_path = obj.split(":", 1)
-            parts = obj_path.split(".")
-            if len(parts) >= 3:
-                managed_schemas.add(f"{parts[0]}.{parts[1]}".lower())
+    for db in databases_config:
+        db_name = db["name"].lower()
+        for schema in db.get("schemas", []):
+            managed_schemas.add(f"{db_name}.{schema['name'].lower()}")
 
     future_grants: dict = {}
     for schema_path in managed_schemas:
@@ -117,9 +90,7 @@ _OBJECT_TYPE_MAP = {
 }
 
 
-def _get_object_grants(
-    grants_config: list[dict], cursor: SnowflakeCursor
-) -> dict:
+def _get_object_grants(grants_config: list[dict], cursor: SnowflakeCursor) -> dict:
     managed_objects: list[tuple[str, str, str]] = []
     for grant in grants_config:
         for obj in grant.get("read_on_objects", []):
@@ -201,6 +172,8 @@ def current_state(config: dict) -> dict:
     roles_config = config.get("roles", [])
     users_config = config.get("users", [])
     network_policies_config = config.get("network_policies", [])
+    databases_config = config.get("databases", [])
+    warehouses_config = config.get("warehouses", [])
     grants_config = config.get("grants", [])
 
     with snowflake_cursor() as cursor:
@@ -210,10 +183,10 @@ def current_state(config: dict) -> dict:
         users = _get_users_state(users_config, cursor)
         roles = cursor.execute("show roles").fetchall()
         grants_of_roles = _get_role_grants(roles_config, cursor)
-        warehouse_grants = _get_warehouse_grants(grants_config, cursor)
-        database_grants = _get_database_grants(grants_config, cursor)
-        schema_grants = _get_schema_grants(grants_config, cursor)
-        future_schema_grants = _get_future_schema_grants(grants_config, cursor)
+        warehouse_grants = _get_warehouse_grants(warehouses_config, cursor)
+        database_grants = _get_database_grants(databases_config, cursor)
+        schema_grants = _get_schema_grants(databases_config, cursor)
+        future_schema_grants = _get_future_schema_grants(databases_config, cursor)
         object_grants = _get_object_grants(grants_config, cursor)
         network_policies = _get_network_policies(network_policies_config, cursor)
     return {
