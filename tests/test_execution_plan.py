@@ -2266,6 +2266,186 @@ def test_future_grants_revokes_non_select_privileges():
     assert not any("READER" in s and "revoke" in s for s in result)
 
 
+def test_future_read_revoked_when_only_write_on_schemas():
+    """Future read grants must be revoked when schema is only in write_on_schemas."""
+    config = {"grants": [{"role": "writer", "write_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {"db1.sch1": []},
+            "future_in_schemas": {
+                "db1.sch1": [
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "TABLE",
+                        "grantee_name": "STALE_READER",
+                    },
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "VIEW",
+                        "grantee_name": "STALE_READER",
+                    },
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "DYNAMIC TABLE",
+                        "grantee_name": "STALE_READER",
+                    },
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "SEMANTIC VIEW",
+                        "grantee_name": "STALE_READER",
+                    },
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert (
+        'revoke select on future tables in schema db1.sch1 from role "STALE_READER"'
+        in result
+    )
+    assert (
+        'revoke select on future views in schema db1.sch1 from role "STALE_READER"'
+        in result
+    )
+    assert (
+        'revoke select on future dynamic tables in schema db1.sch1 from role "STALE_READER"'
+        in result
+    )
+    assert (
+        'revoke select on future semantic views in schema db1.sch1 from role "STALE_READER"'
+        in result
+    )
+    # Also clean up existing objects
+    assert (
+        'revoke select on all tables in schema db1.sch1 from role "STALE_READER"'
+        in result
+    )
+    assert (
+        'revoke select on all views in schema db1.sch1 from role "STALE_READER"'
+        in result
+    )
+    assert (
+        'revoke select on all dynamic tables in schema db1.sch1 from role "STALE_READER"'
+        in result
+    )
+    assert (
+        'revoke select on all semantic views in schema db1.sch1 from role "STALE_READER"'
+        in result
+    )
+
+
+def test_future_read_revoked_when_only_read_on_objects():
+    """Future read grants must be revoked when schema is only in read_on_objects."""
+    config = {
+        "grants": [
+            {"role": "obj_reader", "read_on_objects": ["table:db1.sch1.t1"]}
+        ]
+    }
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {"db1.sch1": []},
+            "future_in_schemas": {
+                "db1.sch1": [
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "TABLE",
+                        "grantee_name": "STALE_READER",
+                    },
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "VIEW",
+                        "grantee_name": "STALE_READER",
+                    },
+                ]
+            },
+            "on_objects": {"table:db1.sch1.t1": []},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert (
+        'revoke select on future tables in schema db1.sch1 from role "STALE_READER"'
+        in result
+    )
+    assert (
+        'revoke select on future views in schema db1.sch1 from role "STALE_READER"'
+        in result
+    )
+
+
+def test_future_read_no_regression_with_read_and_write():
+    """Schema in both read_on_schemas and write_on_schemas: future reads preserved."""
+    config = {
+        "grants": [
+            {"role": "reader", "read_on_schemas": ["db1.sch1"]},
+            {"role": "writer", "write_on_schemas": ["db1.sch1"]},
+        ]
+    }
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {"db1.sch1": []},
+            "future_in_schemas": {
+                "db1.sch1": [
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "TABLE",
+                        "grantee_name": "READER",
+                    },
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "VIEW",
+                        "grantee_name": "READER",
+                    },
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "DYNAMIC TABLE",
+                        "grantee_name": "READER",
+                    },
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "SEMANTIC VIEW",
+                        "grantee_name": "READER",
+                    },
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    # reader's future grants should NOT be revoked
+    assert not any("revoke" in s and "reader" in s.lower() for s in result)
+    # writer should NOT get future read grants
+    assert not any(
+        "grant select on future" in s and "writer" in s for s in result
+    )
+
+
+def test_future_read_writer_role_revoked_on_write_only_schema():
+    """Writer role's stale future read grants revoked on write-only schema."""
+    config = {"grants": [{"role": "writer", "write_on_schemas": ["db1.sch1"]}]}
+    state = {
+        "grants": {
+            "on_databases": {"db1": []},
+            "on_schemas": {"db1.sch1": []},
+            "future_in_schemas": {
+                "db1.sch1": [
+                    {
+                        "privilege": "SELECT",
+                        "grant_on": "TABLE",
+                        "grantee_name": "WRITER",
+                    },
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    # Even though writer is the configured role, write != future read
+    assert (
+        'revoke select on future tables in schema db1.sch1 from role "WRITER"' in result
+    )
+
+
 def test_future_grants_does_not_revoke_ownership():
     """Future grants diff must never revoke OWNERSHIP."""
     config = {

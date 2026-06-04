@@ -574,7 +574,7 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
                     )
                 )
 
-    # --- Future read grants (read_on_schemas) ---
+    # --- Future read grants ---
     future_in_schemas_state = state.get("future_in_schemas", {})
     future_grant_map = {
         "table": (grant_role_future_read_on_tables_in_schema, "tables"),
@@ -591,7 +591,14 @@ def _grant_role_execution_plan(grants: list[dict], state: dict) -> list[str]:
     # Track (schema_path, role) pairs that need new future grants — these also
     # need ALL grants to bootstrap existing objects in that schema.
     schemas_needing_bootstrap: set[tuple[str, str]] = set()
-    for schema_path, desired_roles in desired_future_read.items():
+    # Check all managed schemas that either have desired future reads or
+    # existing future grant state — ensures stale future grants are revoked
+    # even when a schema is only referenced via write_on_schemas or read_on_objects.
+    managed_future_schemas = set(desired_future_read.keys()) | (
+        set(future_in_schemas_state.keys()) & all_managed_schemas
+    )
+    for schema_path in managed_future_schemas:
+        desired_roles = desired_future_read.get(schema_path, set())
         database, schema = schema_path.split(".")
         future_schema_state = future_in_schemas_state.get(schema_path)
 
