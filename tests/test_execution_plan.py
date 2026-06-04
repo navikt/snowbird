@@ -2815,3 +2815,439 @@ def test_future_grants_does_not_revoke_ownership():
     }
     result = set(execution_plan(config=config, state=state))
     assert not any("revoke ownership" in s for s in result)
+
+
+# ===== Object privileges revocation (information_schema.object_privileges) =====
+
+
+def test_object_privileges_revoke_undesired_select():
+    """SELECT on objects in schemas not in read_on_schemas should be revoked."""
+    config = {
+        "roles": [{"name": "analyst"}],
+        "databases": [
+            {"name": "db1", "schemas": [{"name": "marts"}, {"name": "meta"}]}
+        ],
+        "grants": [{"role": "analyst", "read_on_schemas": ["db1.marts"]}],
+    }
+    state = {
+        "grants": {
+            "on_databases": {},
+            "on_schemas": {},
+            "future_in_schemas": {},
+            "on_objects": {},
+            "object_privileges": {
+                "db1": [
+                    {
+                        "GRANTEE": "ANALYST",
+                        "PRIVILEGE_TYPE": "SELECT",
+                        "OBJECT_TYPE": "TABLE",
+                        "OBJECT_NAME": "secret_table",
+                        "OBJECT_SCHEMA": "META",
+                    },
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert (
+        'revoke select on table db1.meta.secret_table from role "ANALYST"' in result
+    )
+
+
+def test_object_privileges_preserve_desired_select():
+    """SELECT on objects in schemas from read_on_schemas should NOT be revoked."""
+    config = {
+        "roles": [{"name": "analyst"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "marts"}]}],
+        "grants": [{"role": "analyst", "read_on_schemas": ["db1.marts"]}],
+    }
+    state = {
+        "grants": {
+            "on_databases": {},
+            "on_schemas": {},
+            "future_in_schemas": {},
+            "on_objects": {},
+            "object_privileges": {
+                "db1": [
+                    {
+                        "GRANTEE": "ANALYST",
+                        "PRIVILEGE_TYPE": "SELECT",
+                        "OBJECT_TYPE": "TABLE",
+                        "OBJECT_NAME": "sales",
+                        "OBJECT_SCHEMA": "MARTS",
+                    },
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert not any("revoke" in s and "sales" in s for s in result)
+
+
+def test_object_privileges_revoke_non_select_privilege():
+    """Non-SELECT privileges (REBUILD, INSERT, etc.) should always be revoked."""
+    config = {
+        "roles": [{"name": "loader"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "raw"}]}],
+        "grants": [{"role": "loader", "write_on_schemas": ["db1.raw"]}],
+    }
+    state = {
+        "grants": {
+            "on_databases": {},
+            "on_schemas": {},
+            "future_in_schemas": {},
+            "on_objects": {},
+            "object_privileges": {
+                "db1": [
+                    {
+                        "GRANTEE": "LOADER",
+                        "PRIVILEGE_TYPE": "REBUILD",
+                        "OBJECT_TYPE": "TABLE",
+                        "OBJECT_NAME": "some_table",
+                        "OBJECT_SCHEMA": "RAW",
+                    },
+                    {
+                        "GRANTEE": "LOADER",
+                        "PRIVILEGE_TYPE": "INSERT",
+                        "OBJECT_TYPE": "TABLE",
+                        "OBJECT_NAME": "some_table",
+                        "OBJECT_SCHEMA": "RAW",
+                    },
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert 'revoke rebuild on table db1.raw.some_table from role "LOADER"' in result
+    assert 'revoke insert on table db1.raw.some_table from role "LOADER"' in result
+
+
+def test_object_privileges_skip_system_roles():
+    """Grants to system roles should never be revoked."""
+    config = {
+        "roles": [{"name": "analyst"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "analyst", "read_on_schemas": ["db1.sch1"]}],
+    }
+    state = {
+        "grants": {
+            "on_databases": {},
+            "on_schemas": {},
+            "future_in_schemas": {},
+            "on_objects": {},
+            "object_privileges": {
+                "db1": [
+                    {
+                        "GRANTEE": "SYSADMIN",
+                        "PRIVILEGE_TYPE": "SELECT",
+                        "OBJECT_TYPE": "TABLE",
+                        "OBJECT_NAME": "t1",
+                        "OBJECT_SCHEMA": "SCH1",
+                    },
+                    {
+                        "GRANTEE": "ACCOUNTADMIN",
+                        "PRIVILEGE_TYPE": "INSERT",
+                        "OBJECT_TYPE": "TABLE",
+                        "OBJECT_NAME": "t1",
+                        "OBJECT_SCHEMA": "SCH1",
+                    },
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert not any("SYSADMIN" in s and "revoke" in s for s in result)
+    assert not any("ACCOUNTADMIN" in s and "revoke" in s for s in result)
+
+
+def test_object_privileges_revoke_non_managed_roles():
+    """Grants to roles NOT in the spec should be revoked."""
+    config = {
+        "roles": [{"name": "analyst"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "analyst", "read_on_schemas": ["db1.sch1"]}],
+    }
+    state = {
+        "grants": {
+            "on_databases": {},
+            "on_schemas": {},
+            "future_in_schemas": {},
+            "on_objects": {},
+            "object_privileges": {
+                "db1": [
+                    {
+                        "GRANTEE": "ROGUE_ROLE",
+                        "PRIVILEGE_TYPE": "SELECT",
+                        "OBJECT_TYPE": "TABLE",
+                        "OBJECT_NAME": "t1",
+                        "OBJECT_SCHEMA": "SCH1",
+                    },
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert 'revoke select on table db1.sch1.t1 from role "ROGUE_ROLE"' in result
+
+
+def test_object_privileges_preserve_read_on_objects():
+    """Objects explicitly in read_on_objects should be handled by on_objects diffing, not object_privileges."""
+    config = {
+        "roles": [{"name": "analyst"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [
+            {"role": "analyst", "read_on_objects": ["table:db1.sch1.t1"]},
+        ],
+    }
+    state = {
+        "grants": {
+            "on_databases": {},
+            "on_schemas": {},
+            "future_in_schemas": {},
+            "on_objects": {
+                "table:db1.sch1.t1": [
+                    {
+                        "privilege": "SELECT",
+                        "granted_to": "ROLE",
+                        "grantee_name": "ANALYST",
+                    },
+                ]
+            },
+            "object_privileges": {
+                "db1": [
+                    {
+                        "GRANTEE": "ANALYST",
+                        "PRIVILEGE_TYPE": "SELECT",
+                        "OBJECT_TYPE": "TABLE",
+                        "OBJECT_NAME": "t1",
+                        "OBJECT_SCHEMA": "SCH1",
+                    },
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    # Should not revoke — it's a desired grant via read_on_objects
+    assert not any("revoke" in s and "t1" in s for s in result)
+
+
+def test_object_privileges_uses_object_type_from_state():
+    """REVOKE uses the object type from information_schema state."""
+    config = {
+        "roles": [{"name": "analyst"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "analyst"}],
+    }
+    state = {
+        "grants": {
+            "on_databases": {},
+            "on_schemas": {},
+            "future_in_schemas": {},
+            "on_objects": {},
+            "object_privileges": {
+                "db1": [
+                    {
+                        "GRANTEE": "ANALYST",
+                        "PRIVILEGE_TYPE": "SELECT",
+                        "OBJECT_TYPE": "VIEW",
+                        "OBJECT_NAME": "v1",
+                        "OBJECT_SCHEMA": "SCH1",
+                    },
+                    {
+                        "GRANTEE": "ANALYST",
+                        "PRIVILEGE_TYPE": "SELECT",
+                        "OBJECT_TYPE": "DYNAMIC TABLE",
+                        "OBJECT_NAME": "dt1",
+                        "OBJECT_SCHEMA": "SCH1",
+                    },
+                    {
+                        "GRANTEE": "ANALYST",
+                        "PRIVILEGE_TYPE": "SELECT",
+                        "OBJECT_TYPE": "SEMANTIC VIEW",
+                        "OBJECT_NAME": "sv1",
+                        "OBJECT_SCHEMA": "SCH1",
+                    },
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert 'revoke select on view db1.sch1.v1 from role "ANALYST"' in result
+    assert (
+        'revoke select on dynamic table db1.sch1.dt1 from role "ANALYST"' in result
+    )
+    assert (
+        'revoke select on semantic view db1.sch1.sv1 from role "ANALYST"' in result
+    )
+
+
+def test_object_privileges_empty_state():
+    """No revokes when object_privileges is empty or absent."""
+    config = {
+        "roles": [{"name": "analyst"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "analyst", "read_on_schemas": ["db1.sch1"]}],
+    }
+    state = {
+        "grants": {
+            "on_databases": {},
+            "on_schemas": {},
+            "future_in_schemas": {},
+            "on_objects": {},
+            "object_privileges": {},
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert not any("revoke" in s and "on table" in s for s in result)
+    assert not any("revoke" in s and "on view" in s for s in result)
+
+
+def test_object_privileges_no_key_in_state():
+    """No revokes when object_privileges key is absent from state (stateless mode)."""
+    config = {
+        "roles": [{"name": "analyst"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "analyst", "read_on_schemas": ["db1.sch1"]}],
+    }
+    result = set(execution_plan(config=config, state={}))
+    assert not any("revoke" in s and "on table" in s for s in result)
+
+
+def test_object_privileges_write_on_schemas_does_not_preserve():
+    """write_on_schemas should NOT preserve object-level SELECT grants."""
+    config = {
+        "roles": [{"name": "transformer"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "marts"}]}],
+        "grants": [{"role": "transformer", "write_on_schemas": ["db1.marts"]}],
+    }
+    state = {
+        "grants": {
+            "on_databases": {},
+            "on_schemas": {},
+            "future_in_schemas": {},
+            "on_objects": {},
+            "object_privileges": {
+                "db1": [
+                    {
+                        "GRANTEE": "TRANSFORMER",
+                        "PRIVILEGE_TYPE": "SELECT",
+                        "OBJECT_TYPE": "TABLE",
+                        "OBJECT_NAME": "output_table",
+                        "OBJECT_SCHEMA": "MARTS",
+                    },
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert (
+        'revoke select on table db1.marts.output_table from role "TRANSFORMER"'
+        in result
+    )
+
+
+def test_object_privileges_multiple_databases():
+    """Object privileges from multiple managed databases are all processed."""
+    config = {
+        "roles": [{"name": "analyst"}],
+        "databases": [
+            {"name": "db1", "schemas": [{"name": "sch1"}]},
+            {"name": "db2", "schemas": [{"name": "sch1"}]},
+        ],
+        "grants": [{"role": "analyst"}],
+    }
+    state = {
+        "grants": {
+            "on_databases": {},
+            "on_schemas": {},
+            "future_in_schemas": {},
+            "on_objects": {},
+            "object_privileges": {
+                "db1": [
+                    {
+                        "GRANTEE": "ANALYST",
+                        "PRIVILEGE_TYPE": "SELECT",
+                        "OBJECT_TYPE": "TABLE",
+                        "OBJECT_NAME": "t1",
+                        "OBJECT_SCHEMA": "SCH1",
+                    },
+                ],
+                "db2": [
+                    {
+                        "GRANTEE": "ANALYST",
+                        "PRIVILEGE_TYPE": "SELECT",
+                        "OBJECT_TYPE": "TABLE",
+                        "OBJECT_NAME": "t2",
+                        "OBJECT_SCHEMA": "SCH1",
+                    },
+                ],
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert 'revoke select on table db1.sch1.t1 from role "ANALYST"' in result
+    assert 'revoke select on table db2.sch1.t2 from role "ANALYST"' in result
+
+
+def test_object_privileges_all_object_types_get_revoked():
+    """All object types from object_privileges are revoked using the object type from state."""
+    config = {
+        "roles": [{"name": "analyst"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "sch1"}]}],
+        "grants": [{"role": "analyst"}],
+    }
+    state = {
+        "grants": {
+            "on_databases": {},
+            "on_schemas": {},
+            "future_in_schemas": {},
+            "on_objects": {},
+            "object_privileges": {
+                "db1": [
+                    {
+                        "GRANTEE": "ANALYST",
+                        "PRIVILEGE_TYPE": "USAGE",
+                        "OBJECT_TYPE": "STAGE",
+                        "OBJECT_NAME": "my_stage",
+                        "OBJECT_SCHEMA": "SCH1",
+                    },
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert 'revoke usage on stage db1.sch1.my_stage from role "ANALYST"' in result
+
+
+def test_object_privileges_schemas_not_in_spec():
+    """Grants on objects in schemas NOT declared in the spec should still be revoked
+    (since the database is managed)."""
+    config = {
+        "roles": [{"name": "analyst"}],
+        "databases": [{"name": "db1", "schemas": [{"name": "marts"}]}],
+        "grants": [{"role": "analyst", "read_on_schemas": ["db1.marts"]}],
+    }
+    state = {
+        "grants": {
+            "on_databases": {},
+            "on_schemas": {},
+            "future_in_schemas": {},
+            "on_objects": {},
+            "object_privileges": {
+                "db1": [
+                    {
+                        "GRANTEE": "ANALYST",
+                        "PRIVILEGE_TYPE": "SELECT",
+                        "OBJECT_TYPE": "TABLE",
+                        "OBJECT_NAME": "hidden_table",
+                        "OBJECT_SCHEMA": "UNDECLARED_SCHEMA",
+                    },
+                ]
+            },
+        },
+    }
+    result = set(execution_plan(config=config, state=state))
+    assert (
+        'revoke select on table db1.undeclared_schema.hidden_table from role "ANALYST"'
+        in result
+    )

@@ -90,6 +90,25 @@ _OBJECT_TYPE_MAP = {
 }
 
 
+def _get_object_privileges(
+    databases_config: list[dict], cursor: SnowflakeCursor
+) -> dict:
+    managed_databases = [db["name"].lower() for db in databases_config]
+    object_privileges: dict = {}
+    for database in managed_databases:
+        try:
+            cursor.execute(
+                f"SELECT GRANTEE, PRIVILEGE_TYPE, OBJECT_TYPE, OBJECT_NAME, OBJECT_SCHEMA"
+                f" FROM {database}.information_schema.object_privileges"
+                f" WHERE PRIVILEGE_TYPE != 'OWNERSHIP'"
+                f" AND OBJECT_TYPE NOT IN ('DATABASE', 'SCHEMA')"
+            )
+            object_privileges[database] = cursor.fetchall()
+        except snowflake.connector.errors.ProgrammingError:
+            pass
+    return object_privileges
+
+
 def _get_object_grants(grants_config: list[dict], cursor: SnowflakeCursor) -> dict:
     managed_objects: list[tuple[str, str, str]] = []
     for grant in grants_config:
@@ -188,6 +207,7 @@ def current_state(config: dict) -> dict:
         schema_grants = _get_schema_grants(databases_config, cursor)
         future_schema_grants = _get_future_schema_grants(databases_config, cursor)
         object_grants = _get_object_grants(grants_config, cursor)
+        object_privileges = _get_object_privileges(databases_config, cursor)
         network_policies = _get_network_policies(network_policies_config, cursor)
     return {
         "databases": databases,
@@ -202,6 +222,7 @@ def current_state(config: dict) -> dict:
             "on_schemas": schema_grants,
             "future_in_schemas": future_schema_grants,
             "on_objects": object_grants,
+            "object_privileges": object_privileges,
         },
         "network_policies": network_policies,
     }

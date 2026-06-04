@@ -137,6 +137,10 @@ SNOWFLAKE_OBJECT_TYPES = {
     "semantic_view": "semantic view",
 }
 
+SYSTEM_ROLES = frozenset(
+    {"accountadmin", "sysadmin", "securityadmin", "useradmin", "public", "orgadmin"}
+)
+
 jinja_env = jinja2.Environment()
 
 
@@ -759,6 +763,48 @@ def _grant_role_execution_plan(
                         privilege_clause=f"{priv} on {obj_fqn}",
                         grantee_type=gtype,
                         grantee_name=name,
+                    )
+                )
+
+    # --- Object privileges revocation (information_schema.object_privileges) ---
+    # Build set of objects explicitly managed via read_on_objects to avoid
+    # duplicate revokes (those are handled by the on_objects diffing above).
+    explicitly_managed_objects: set[tuple[str, str, str]] = set()
+    for config_key, info in desired_object_read.items():
+        explicitly_managed_objects.add(
+            (info["db"].lower(), info["schema"].lower(), info["name"].lower())
+        )
+
+    object_privileges_state = state.get("object_privileges", {})
+    for database, privileges in object_privileges_state.items():
+        for priv in privileges:
+            grantee = priv["GRANTEE"].lower()
+            privilege_type = priv["PRIVILEGE_TYPE"].lower()
+            object_type = priv["OBJECT_TYPE"].lower()
+            object_schema = priv["OBJECT_SCHEMA"].lower()
+            object_name = priv["OBJECT_NAME"].lower()
+            schema_path = f"{database}.{object_schema}"
+
+            if grantee in SYSTEM_ROLES:
+                continue
+
+            # Skip objects explicitly managed via read_on_objects
+            if (database, object_schema, object_name) in explicitly_managed_objects:
+                continue
+
+            # Check if this is a desired grant
+            is_desired = False
+            if privilege_type == "select":
+                # Desired if role has read_on_schemas for this schema
+                if grantee in desired_future_read.get(schema_path, set()):
+                    is_desired = True
+
+            if not is_desired:
+                execution_plan.add(
+                    jinja_env.from_string(revoke_privilege).render(
+                        privilege_clause=f"{privilege_type} on {object_type} {database}.{object_schema}.{object_name}",
+                        grantee_type="role",
+                        grantee_name=grantee,
                     )
                 )
 
