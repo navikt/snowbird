@@ -8,6 +8,9 @@ Snowbird is a Terraform/Permifrost-like CLI tool for declaratively managing Snow
 # Set up virtual environment with dev dependencies
 make install
 
+# use the venv
+source .venv/bin/activate
+
 # Run the full test suite
 pytest tests
 
@@ -20,7 +23,12 @@ isort .
 
 # Regenerate COMMANDS.md and REFERENCES.md after schema or CLI changes
 make docs
+
+# test command-line interface (see snowbird-cli skill for full reference)
+snowbird plan --config tests/snowflake.yml --silent --execution-plan
 ```
+
+**⚠️ Never run `snowbird apply` on your own.** It executes SQL against a live Snowflake instance. Only run when the user explicitly asks for it.
 
 The CI pipeline (`.github/workflows/test.yaml`) runs `pytest tests` on every push.
 
@@ -72,3 +80,4 @@ Always use caveman skills when applicable:
 - **caveman-commit** — Generate commit messages in caveman style
 - **caveman-review** — Code reviews in caveman style
 - **caveman-compress** — Compress memory/instruction files in caveman format
+- **snowbird-cli** — CLI reference and testing guide for snowbird commands
