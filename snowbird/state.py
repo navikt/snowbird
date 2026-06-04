@@ -89,8 +89,15 @@ def _get_future_schema_grants(
 ) -> dict:
     managed_schemas: set[str] = set()
     for grant in grants_config:
-        for schema_path in grant.get("read_on_schemas", []):
+        for schema_path in grant.get("read_on_schemas", []) + grant.get(
+            "write_on_schemas", []
+        ):
             managed_schemas.add(schema_path.lower())
+        for obj in grant.get("read_on_objects", []):
+            _, obj_path = obj.split(":", 1)
+            parts = obj_path.split(".")
+            if len(parts) >= 3:
+                managed_schemas.add(f"{parts[0]}.{parts[1]}".lower())
 
     future_grants: dict = {}
     for schema_path in managed_schemas:
