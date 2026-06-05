@@ -1,85 +1,112 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 import snowflake
 from snowflake.connector.cursor import SnowflakeCursor
 
-from snowbird.utils import snowflake_cursor
+from snowbird.utils import ConnectionPool
 
 
-def _get_role_grants(roles: list[dict], cursor: SnowflakeCursor) -> dict:
-    grants: dict = {}
-    for role in roles:
+def _execute_query(pool: ConnectionPool, sql: str) -> list[dict]:
+    """Execute a single query using a connection from the pool."""
+    with pool.get_cursor() as cursor:
         try:
-            cursor.execute(f"show grants of role {role['name']}")
-            grants[role["name"]] = cursor.fetchall()
-        except snowflake.connector.errors.ProgrammingError as e:
-            # This error is expected if the role does not exist
-            pass
-    return grants
+            cursor.execute(sql)
+            return cursor.fetchall()
+        except snowflake.connector.errors.ProgrammingError:
+            return []
 
 
-def _get_warehouse_grants(
-    warehouses_config: list[dict], cursor: SnowflakeCursor
-) -> dict:
-    managed_warehouses: set[str] = {wh["name"].lower() for wh in warehouses_config}
-
-    warehouse_grants: dict = {}
-    for warehouse in managed_warehouses:
+def _async_fetch_all(
+    cursor: SnowflakeCursor, items: list[tuple[str, str]]
+) -> dict[str, list[dict]]:
+    """Submit queries async, collect results. Items: [(key, sql), ...]."""
+    query_ids: dict[str, str] = {}
+    for key, sql in items:
         try:
-            cursor.execute(f"show grants on warehouse {warehouse}")
-            warehouse_grants[warehouse] = cursor.fetchall()
+            cursor.execute_async(sql)
+            query_ids[key] = cursor.sfqid
         except snowflake.connector.errors.ProgrammingError:
             pass
-    return warehouse_grants
 
-
-def _get_database_grants(databases_config: list[dict], cursor: SnowflakeCursor) -> dict:
-    managed_databases: set[str] = {db["name"].lower() for db in databases_config}
-
-    database_grants: dict = {}
-    for database in managed_databases:
+    results: dict[str, list[dict]] = {}
+    for key, qid in query_ids.items():
         try:
-            cursor.execute(f"show grants on database {database}")
-            database_grants[database] = cursor.fetchall()
+            cursor.get_results_from_sfqid(qid)
+            results[key] = cursor.fetchall()
         except snowflake.connector.errors.ProgrammingError:
             pass
-    return database_grants
+    return results
 
 
-def _get_schema_grants(databases_config: list[dict], cursor: SnowflakeCursor) -> dict:
-    managed_schemas: set[str] = set()
+def _get_role_grants(roles: list[dict], pool: ConnectionPool) -> dict:
+    if not roles:
+        return {}
+    items = [(role["name"], f"show grants of role {role['name']}") for role in roles]
+    with pool.get_cursor() as cursor:
+        return _async_fetch_all(cursor, items)
+
+
+def _get_warehouse_grants(warehouses_config: list[dict], pool: ConnectionPool) -> dict:
+    managed_warehouses = [wh["name"].lower() for wh in warehouses_config]
+    if not managed_warehouses:
+        return {}
+    items = [(wh, f"show grants on warehouse {wh}") for wh in managed_warehouses]
+    with pool.get_cursor() as cursor:
+        return _async_fetch_all(cursor, items)
+
+
+def _get_database_grants(databases_config: list[dict], pool: ConnectionPool) -> dict:
+    managed_databases = [db["name"].lower() for db in databases_config]
+    if not managed_databases:
+        return {}
+    items = [(db, f"show grants on database {db}") for db in managed_databases]
+    with pool.get_cursor() as cursor:
+        return _async_fetch_all(cursor, items)
+
+
+def _get_schemas_state(
+    databases_config: list[dict], pool: ConnectionPool
+) -> list[dict]:
+    """Fetch schemas scoped per managed database, not account-wide."""
+    if not databases_config:
+        return []
+    managed_dbs = [db["name"].lower() for db in databases_config]
+    items = [(db, f"show schemas in database {db}") for db in managed_dbs]
+    with pool.get_cursor() as cursor:
+        results = _async_fetch_all(cursor, items)
+    schemas = []
+    for db_schemas in results.values():
+        schemas.extend(db_schemas)
+    return schemas
+
+
+def _get_schema_grants(databases_config: list[dict], pool: ConnectionPool) -> dict:
+    managed_schemas: list[str] = []
     for db in databases_config:
         db_name = db["name"].lower()
         for schema in db.get("schemas", []):
-            managed_schemas.add(f"{db_name}.{schema['name'].lower()}")
-
-    schema_grants: dict = {}
-    for schema_path in managed_schemas:
-        try:
-            cursor.execute(f"show grants on schema {schema_path}")
-            schema_grants[schema_path] = cursor.fetchall()
-        except snowflake.connector.errors.ProgrammingError:
-            pass
-    return schema_grants
+            managed_schemas.append(f"{db_name}.{schema['name'].lower()}")
+    if not managed_schemas:
+        return {}
+    items = [(s, f"show grants on schema {s}") for s in managed_schemas]
+    with pool.get_cursor() as cursor:
+        return _async_fetch_all(cursor, items)
 
 
 def _get_future_schema_grants(
-    databases_config: list[dict], cursor: SnowflakeCursor
+    databases_config: list[dict], pool: ConnectionPool
 ) -> dict:
-    managed_schemas: set[str] = set()
+    managed_schemas: list[str] = []
     for db in databases_config:
         db_name = db["name"].lower()
         for schema in db.get("schemas", []):
-            managed_schemas.add(f"{db_name}.{schema['name'].lower()}")
-
-    future_grants: dict = {}
-    for schema_path in managed_schemas:
-        try:
-            cursor.execute(f"show future grants in schema {schema_path}")
-            future_grants[schema_path] = cursor.fetchall()
-        except snowflake.connector.errors.ProgrammingError:
-            pass
-    return future_grants
+            managed_schemas.append(f"{db_name}.{schema['name'].lower()}")
+    if not managed_schemas:
+        return {}
+    items = [(s, f"show future grants in schema {s}") for s in managed_schemas]
+    with pool.get_cursor() as cursor:
+        return _async_fetch_all(cursor, items)
 
 
 _OBJECT_TYPE_MAP = {
@@ -90,7 +117,25 @@ _OBJECT_TYPE_MAP = {
 }
 
 
-def _get_object_grants(grants_config: list[dict], cursor: SnowflakeCursor) -> dict:
+def _get_object_privileges(databases_config: list[dict], pool: ConnectionPool) -> dict:
+    managed_databases = [db["name"].lower() for db in databases_config]
+    if not managed_databases:
+        return {}
+    items = [
+        (
+            db,
+            f"SELECT GRANTEE, PRIVILEGE_TYPE, OBJECT_TYPE, OBJECT_NAME, OBJECT_SCHEMA"
+            f" FROM {db}.information_schema.object_privileges"
+            f" WHERE PRIVILEGE_TYPE != 'OWNERSHIP'"
+            f" AND OBJECT_TYPE NOT IN ('DATABASE', 'SCHEMA')",
+        )
+        for db in managed_databases
+    ]
+    with pool.get_cursor() as cursor:
+        return _async_fetch_all(cursor, items)
+
+
+def _get_object_grants(grants_config: list[dict], pool: ConnectionPool) -> dict:
     managed_objects: list[tuple[str, str, str]] = []
     for grant in grants_config:
         for obj in grant.get("read_on_objects", []):
@@ -98,75 +143,65 @@ def _get_object_grants(grants_config: list[dict], cursor: SnowflakeCursor) -> di
             sf_type = _OBJECT_TYPE_MAP.get(prefix, prefix)
             managed_objects.append((prefix, sf_type, obj_path.lower()))
 
-    object_grants: dict = {}
     seen: set[str] = set()
+    items: list[tuple[str, str]] = []
     for prefix, sf_type, obj_path in managed_objects:
         key = f"{prefix}:{obj_path}"
         if key in seen:
             continue
         seen.add(key)
-        try:
-            cursor.execute(f"show grants on {sf_type} {obj_path}")
-            object_grants[key] = cursor.fetchall()
-        except snowflake.connector.errors.ProgrammingError:
-            pass
-    return object_grants
+        items.append((key, f"show grants on {sf_type} {obj_path}"))
+
+    if not items:
+        return {}
+    with pool.get_cursor() as cursor:
+        return _async_fetch_all(cursor, items)
 
 
-def _get_users_state(users: list[dict], cursor: SnowflakeCursor) -> list[dict]:
+def _get_users_state(users: list[dict], pool: ConnectionPool) -> list[dict]:
+    if not users:
+        return []
 
     state = []
     for user in users:
-        try:
-            # Fetch user details
-            cursor.execute(f"show users like '{user['name']}'")
-            user_details = cursor.fetchone()
-            # Fetch network policy for each user
-            cursor.execute(
-                f"show parameters like 'NETWORK_POLICY' for user {user['name']}"
-            )
-            network_policy = cursor.fetchone()
+        name = user["name"]
+        details = _execute_query(pool, f"show users like '{name}'")
+        policies = _execute_query(
+            pool, f"show parameters like 'NETWORK_POLICY' for user {name}"
+        )
+        if details and policies:
             state.append(
                 {
-                    "name": user_details["name"],
-                    "type": user_details["type"],
-                    "network_policy": network_policy["value"],
+                    "name": details[0]["name"],
+                    "type": details[0]["type"],
+                    "network_policy": policies[0]["value"],
                 }
             )
-        except snowflake.connector.errors.ProgrammingError:
-            pass
-
     return state
 
 
-def _get_network_policies(
-    network_policies: list[dict], cursor: SnowflakeCursor
-) -> dict:
+def _get_network_policies(network_policies: list[dict], pool: ConnectionPool) -> dict:
+    if not network_policies:
+        return {}
+
     state = {}
     for policy in network_policies:
-        try:
-            cursor.execute(f"show network policies like '{policy['name']}'")
-            policy_details = cursor.fetchone()
-            if not policy_details:
-                continue
-            np = {
-                "comment": policy_details["comment"],
-            }
-            cursor.execute(f"describe network policy {policy['name']}")
-            res = cursor.fetchall()
-            for row in res:
-                if row["name"] == "ALLOWED_NETWORK_RULE_LIST":
-                    np["allowed_network_rule_list"] = json.loads(row["value"])
-                elif row["name"] == "BLOCKED_NETWORK_RULE_LIST":
-                    np["blocked_network_rule_list"] = json.loads(row["value"])
-            state[policy["name"]] = np
-        except snowflake.connector.errors.ProgrammingError:
-            pass
-
+        name = policy["name"]
+        details = _execute_query(pool, f"show network policies like '{name}'")
+        if not details:
+            continue
+        np: dict = {"comment": details[0]["comment"]}
+        rows = _execute_query(pool, f"describe network policy {name}")
+        for row in rows:
+            if row["name"] == "ALLOWED_NETWORK_RULE_LIST":
+                np["allowed_network_rule_list"] = json.loads(row["value"])
+            elif row["name"] == "BLOCKED_NETWORK_RULE_LIST":
+                np["blocked_network_rule_list"] = json.loads(row["value"])
+        state[name] = np
     return state
 
 
-def current_state(config: dict) -> dict:
+def current_state(config: dict, pool_size: int = 10) -> dict:
     assert config is not None, "Config must be provided"
 
     roles_config = config.get("roles", [])
@@ -176,32 +211,46 @@ def current_state(config: dict) -> dict:
     warehouses_config = config.get("warehouses", [])
     grants_config = config.get("grants", [])
 
-    with snowflake_cursor() as cursor:
-        databases = cursor.execute("show databases").fetchall()
-        warehouses = cursor.execute("show warehouses").fetchall()
-        schemas = cursor.execute("show schemas").fetchall()
-        users = _get_users_state(users_config, cursor)
-        roles = cursor.execute("show roles").fetchall()
-        grants_of_roles = _get_role_grants(roles_config, cursor)
-        warehouse_grants = _get_warehouse_grants(warehouses_config, cursor)
-        database_grants = _get_database_grants(databases_config, cursor)
-        schema_grants = _get_schema_grants(databases_config, cursor)
-        future_schema_grants = _get_future_schema_grants(databases_config, cursor)
-        object_grants = _get_object_grants(grants_config, cursor)
-        network_policies = _get_network_policies(network_policies_config, cursor)
-    return {
-        "databases": databases,
-        "warehouses": warehouses,
-        "schemas": schemas,
-        "users": users,
-        "roles": roles,
-        "grants": {
-            "of_roles": grants_of_roles,
-            "on_warehouses": warehouse_grants,
-            "on_databases": database_grants,
-            "on_schemas": schema_grants,
-            "future_in_schemas": future_schema_grants,
-            "on_objects": object_grants,
-        },
-        "network_policies": network_policies,
-    }
+    with ConnectionPool(size=pool_size) as pool:
+        with ThreadPoolExecutor(max_workers=pool_size) as executor:
+            f_obj_privs = executor.submit(
+                _get_object_privileges, databases_config, pool
+            )
+            f_databases = executor.submit(_execute_query, pool, "show databases")
+            f_warehouses = executor.submit(_execute_query, pool, "show warehouses")
+            f_schemas = executor.submit(_get_schemas_state, databases_config, pool)
+            f_roles = executor.submit(_execute_query, pool, "show roles")
+            f_users = executor.submit(_get_users_state, users_config, pool)
+            f_role_grants = executor.submit(_get_role_grants, roles_config, pool)
+            f_wh_grants = executor.submit(
+                _get_warehouse_grants, warehouses_config, pool
+            )
+            f_db_grants = executor.submit(_get_database_grants, databases_config, pool)
+            f_schema_grants = executor.submit(
+                _get_schema_grants, databases_config, pool
+            )
+            f_future_grants = executor.submit(
+                _get_future_schema_grants, databases_config, pool
+            )
+            f_obj_grants = executor.submit(_get_object_grants, grants_config, pool)
+            f_net_policies = executor.submit(
+                _get_network_policies, network_policies_config, pool
+            )
+
+        return {
+            "databases": f_databases.result(),
+            "warehouses": f_warehouses.result(),
+            "schemas": f_schemas.result(),
+            "users": f_users.result(),
+            "roles": f_roles.result(),
+            "grants": {
+                "of_roles": f_role_grants.result(),
+                "on_warehouses": f_wh_grants.result(),
+                "on_databases": f_db_grants.result(),
+                "on_schemas": f_schema_grants.result(),
+                "future_in_schemas": f_future_grants.result(),
+                "on_objects": f_obj_grants.result(),
+                "object_privileges": f_obj_privs.result(),
+            },
+            "network_policies": f_net_policies.result(),
+        }
