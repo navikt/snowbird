@@ -14,6 +14,7 @@ from snowbird.state import (
     _get_object_privileges,
     _get_role_grants,
     _get_schema_grants,
+    _get_schemas_state,
     _get_users_state,
     _get_warehouse_grants,
     current_state,
@@ -278,6 +279,49 @@ class TestGetDatabaseGrants:
         assert _get_database_grants([], pool) == {}
 
 
+# --- _get_schemas_state tests ---
+
+
+class TestGetSchemasState:
+    def test_fetches_scoped_per_database(self):
+        cursor = _make_cursor(
+            execute_results={
+                "show schemas in database mydb": [
+                    {"name": "public", "database_name": "mydb"}
+                ],
+                "show schemas in database other": [
+                    {"name": "raw", "database_name": "other"}
+                ],
+            }
+        )
+        pool = MockPool(cursor)
+        config = [{"name": "mydb"}, {"name": "other"}]
+        result = _get_schemas_state(config, pool)
+
+        assert len(result) == 2
+        names = {s["name"] for s in result}
+        assert names == {"public", "raw"}
+
+    def test_empty_config(self):
+        pool = MockPool(MagicMock())
+        assert _get_schemas_state([], pool) == []
+
+    def test_single_database(self):
+        cursor = _make_cursor(
+            execute_results={
+                "show schemas in database mydb": [
+                    {"name": "public", "database_name": "mydb"},
+                    {"name": "raw", "database_name": "mydb"},
+                ],
+            }
+        )
+        pool = MockPool(cursor)
+        config = [{"name": "mydb"}]
+        result = _get_schemas_state(config, pool)
+
+        assert len(result) == 2
+
+
 # --- _get_schema_grants tests ---
 
 
@@ -494,7 +538,9 @@ class TestCurrentState:
             execute_results={
                 "show databases": [{"name": "db1"}],
                 "show warehouses": [{"name": "wh1"}],
-                "show schemas": [{"name": "public"}],
+                "show schemas in database db1": [
+                    {"name": "public", "database_name": "db1"}
+                ],
                 "show roles": [{"name": "sysadmin"}],
             }
         )
@@ -505,7 +551,7 @@ class TestCurrentState:
             "roles": [],
             "users": [],
             "network_policies": [],
-            "databases": [],
+            "databases": [{"name": "db1"}],
             "warehouses": [],
             "grants": [],
         }
@@ -519,3 +565,4 @@ class TestCurrentState:
         assert "grants" in result
         assert "network_policies" in result
         assert result["databases"] == [{"name": "db1"}]
+        assert result["schemas"] == [{"name": "public", "database_name": "db1"}]

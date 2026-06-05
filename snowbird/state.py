@@ -65,6 +65,22 @@ def _get_database_grants(databases_config: list[dict], pool: ConnectionPool) -> 
         return _async_fetch_all(cursor, items)
 
 
+def _get_schemas_state(
+    databases_config: list[dict], pool: ConnectionPool
+) -> list[dict]:
+    """Fetch schemas scoped per managed database, not account-wide."""
+    if not databases_config:
+        return []
+    managed_dbs = [db["name"].lower() for db in databases_config]
+    items = [(db, f"show schemas in database {db}") for db in managed_dbs]
+    with pool.get_cursor() as cursor:
+        results = _async_fetch_all(cursor, items)
+    schemas = []
+    for db_schemas in results.values():
+        schemas.extend(db_schemas)
+    return schemas
+
+
 def _get_schema_grants(databases_config: list[dict], pool: ConnectionPool) -> dict:
     managed_schemas: list[str] = []
     for db in databases_config:
@@ -197,9 +213,12 @@ def current_state(config: dict, pool_size: int = 10) -> dict:
 
     with ConnectionPool(size=pool_size) as pool:
         with ThreadPoolExecutor(max_workers=pool_size) as executor:
+            f_obj_privs = executor.submit(
+                _get_object_privileges, databases_config, pool
+            )
             f_databases = executor.submit(_execute_query, pool, "show databases")
             f_warehouses = executor.submit(_execute_query, pool, "show warehouses")
-            f_schemas = executor.submit(_execute_query, pool, "show schemas")
+            f_schemas = executor.submit(_get_schemas_state, databases_config, pool)
             f_roles = executor.submit(_execute_query, pool, "show roles")
             f_users = executor.submit(_get_users_state, users_config, pool)
             f_role_grants = executor.submit(_get_role_grants, roles_config, pool)
@@ -214,9 +233,6 @@ def current_state(config: dict, pool_size: int = 10) -> dict:
                 _get_future_schema_grants, databases_config, pool
             )
             f_obj_grants = executor.submit(_get_object_grants, grants_config, pool)
-            f_obj_privs = executor.submit(
-                _get_object_privileges, databases_config, pool
-            )
             f_net_policies = executor.submit(
                 _get_network_policies, network_policies_config, pool
             )
